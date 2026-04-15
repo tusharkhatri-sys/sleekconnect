@@ -73,9 +73,8 @@ const io = new Server(server, {
             // Allow same-origin and common dev origins
             var allowed = [
                 'http://localhost:3000',
-                'http://127.0.0.1:3000'
-                // Add your production domain here:
-                // 'https://your-app.vercel.app'
+                'http://127.0.0.1:3000',
+                'https://sleekconnect.onrender.com'
             ];
             if (!origin || allowed.indexOf(origin) !== -1) {
                 callback(null, true);
