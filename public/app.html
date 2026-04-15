@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Video Match — SleekConnect</title>
+    <meta name="description" content="Connect with random verified users via secure peer-to-peer video calls on SleekConnect.">
+    <meta name="robots" content="noindex, nofollow">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body.ux-body {
+            padding: 0;
+            margin: 0;
+        }
+
+        .app-shell {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-deep);
+            position: relative;
+            z-index: 1;
+        }
+
+        .app-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.8rem 1.5rem;
+            background: var(--glass-bg-solid);
+            border-bottom: 1px solid var(--glass-border);
+            flex-shrink: 0;
+            z-index: 30;
+        }
+
+        .app-topbar .logo {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .app-topbar .logo .highlight {
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .app-topbar .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .app-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Start Panel — centered in the viewport */
+        #start-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        #start-panel h2 {
+            font-size: 2.4rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #start-panel .desc {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            max-width: 520px;
+            margin-bottom: 2.5rem;
+            font-weight: 300;
+            line-height: 1.7;
+        }
+
+        /* Video Container — fills all available space */
+        #video-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        /* Remote Video — fullscreen */
+        #remote-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            background: #0a0a0a;
+        }
+
+        .remote-label {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            z-index: 10;
+        }
+
+        .stranger-left-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 2rem 3rem;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 15;
+            border: 1px solid var(--glass-border);
+        }
+
+        .stranger-left-overlay h3 {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stranger-left-overlay p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+        }
+
+        /* Local Video — PiP overlay */
+        .local-video-pip {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            width: 220px;
+            height: 165px;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.15);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            z-index: 10;
+            background: #111;
+            transition: all 0.3s ease;
+            cursor: grab;
+        }
+
+        .local-video-pip:hover {
+            border-color: var(--accent);
+            transform: scale(1.03);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.8), 0 0 20px var(--accent-glow);
+        }
+
+        .local-video-pip video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transform: scaleX(-1);
+        }
+
+        .local-video-pip .pip-label {
+            position: absolute;
+            bottom: 6px;
+            left: 8px;
+            background: rgba(0,0,0,0.6);
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: white;
+        }
+
+        /* Call Controls — bottom center */
+        .call-controls {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(20px);
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.08);
+            z-index: 20;
+        }
+
+        .ctrl-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .ctrl-btn.muted {
+            background: rgba(248, 113, 113, 0.2);
+            color: var(--danger);
+        }
+
+        .ctrl-btn.next {
+            width: auto;
+            padding: 0 28px;
+            border-radius: 30px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            font-weight: 700;
+            font-size: 0.92rem;
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: 1.5px;
+        }
+
+        .ctrl-btn.next:hover {
+            box-shadow: 0 0 25px var(--accent-glow);
+        }
+
+        .ctrl-btn.end {
+            background: var(--danger);
+        }
+
+        .ctrl-btn.end:hover {
+            background: #dc2626;
+            box-shadow: 0 4px 20px rgba(248, 113, 113, 0.4);
+        }
+
+        /* Footer */
+        .app-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            padding: 8px;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            z-index: 5;
+            background: linear-gradient(transparent, rgba(3,7,18,0.9));
+        }
+
+        .app-footer a {
+            color: var(--text-secondary);
+            margin: 0 6px;
+        }
+
+        /* Queue animation */
+        .queue-text {
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 1rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .local-video-pip {
+                width: 140px;
+                height: 105px;
+                bottom: 90px;
+                right: 12px;
+            }
+
+            .call-controls {
+                gap: 6px;
+                padding: 8px 14px;
+                bottom: 16px;
+            }
+
+            .ctrl-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 1.1rem;
+            }
+
+            .ctrl-btn.next {
+                padding: 0 20px;
+                font-size: 0.82rem;
+            }
+
+            #start-panel h2 {
+                font-size: 1.7rem;
+            }
+        }
+    </style>
+</head>
+<body class="ux-body">
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-shell">
+        <!-- Top Bar -->
+        <div class="app-topbar">
+            <div class="logo">Sleek<span class="highlight">Connect</span></div>
+            <div class="header-actions">
+                <span id="user-status" class="user-badge">Verified Identity ✅</span>
+                <button id="logout-btn" class="ux-danger-btn">Exit</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="app-main">
+            <!-- Start Panel -->
+            <div id="start-panel">
+                <h2>Secure P2P Matchmaking</h2>
+                <p class="desc">Connect with a random verified user through secure, encrypted peer-to-peer video. Your video never touches our servers.</p>
+                <button id="find-partner-btn" class="start-video-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                    Start Video Chat
+                </button>
+                <p id="queue-status" class="queue-text hidden" style="margin-top:1.5rem;">Searching for a verified user…</p>
+            </div>
+
+            <!-- Video Interface -->
+            <div id="video-container" class="hidden">
+                <!-- Remote Video (Full Screen) -->
+                <video id="remote-video" autoplay playsinline></video>
+                <div class="remote-label" id="remote-label">Waiting for partner…</div>
+                
+                <!-- Stranger Left Overlay -->
+                <div id="stranger-left-msg" class="stranger-left-overlay hidden">
+                    <h3>Stranger disconnected</h3>
+                    <p>Click NEXT to find someone else</p>
+                </div>
+
+                <!-- Local Video PiP -->
+                <div class="local-video-pip">
+                    <video id="local-video" autoplay playsinline muted></video>
+                    <div class="pip-label">You</div>
+                </div>
+
+                <!-- Controls Bar -->
+                <div class="call-controls">
+                    <button id="mute-btn" class="ctrl-btn" title="Mute Audio">🎤</button>
+                    <button id="video-off-btn" class="ctrl-btn" title="Toggle Video">📷</button>
+                    <button id="next-btn" class="ctrl-btn next" title="Skip to Next">NEXT</button>
+                    <button id="stop-btn" class="ctrl-btn end" title="Stop Matchmaking">⏹</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        <span>© 2026 SleekConnect</span>
+        <span style="opacity:0.3;">|</span>
+        <a href="privacy.html">Privacy</a>
+        <span style="opacity:0.3;">|</span>
+        <a href="terms.html">Terms</a>
+    </footer>
+
+    <script src="supabase.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+    <script src="cookie-consent.js"></script>
+</body>
+</html>

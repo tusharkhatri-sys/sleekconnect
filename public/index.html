@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — SleekConnect | Secure Video Matchmaking</title>
+    <meta name="description" content="Login to SleekConnect — the secure, verified peer-to-peer video matchmaking platform. Only verified 18+ users allowed.">
+    <meta property="og:title" content="SleekConnect — Secure Video Matchmaking">
+    <meta property="og:description" content="Connect with random verified users in secure peer-to-peer video calls.">
+    <meta property="og:type" content="website">
+    <meta name="robots" content="index, follow">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="ux-body">
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="split-glass-card">
+        <div class="brand-section">
+            <div class="logo-box">
+                <h1>Sleek<span class="highlight">Connect</span></h1>
+                <p>Secure Video Matchmaking</p>
+            </div>
+            <ul class="brand-features">
+                <li>
+                    <div class="feat-icon">🔒</div>
+                    <span>End-to-end encrypted P2P video calls</span>
+                </li>
+                <li>
+                    <div class="feat-icon">✅</div>
+                    <span>Every user identity-verified via live camera</span>
+                </li>
+                <li>
+                    <div class="feat-icon">🛡️</div>
+                    <span>Agent-approved access only — no fake accounts</span>
+                </li>
+                <li>
+                    <div class="feat-icon">🔞</div>
+                    <span>Strictly 18+ verified platform</span>
+                </li>
+            </ul>
+            <div class="brand-badge">
+                <span>🌐</span> Trusted by verified users worldwide
+            </div>
+        </div>
+        <div class="form-section">
+            <div class="header-text">
+                <h2>Welcome Back</h2>
+                <p>Securely authenticate to access matchmaking.</p>
+            </div>
+            <form id="login-form" autocomplete="off">
+                <div class="ux-input-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" required placeholder="you@example.com" autocomplete="email" />
+                </div>
+                <div class="ux-input-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="Enter your password" autocomplete="current-password" />
+                </div>
+                <button type="submit" id="login-btn" class="ux-primary-btn">Authenticate Session</button>
+            </form>
+            <div class="auth-link">
+                Don't have an account? <a href="register.html">Apply for Access</a>
+            </div>
+        </div>
+    </div>
+
+    <footer class="page-footer">
+        <span>© 2026 SleekConnect. All rights reserved.</span>
+        <span class="footer-divider">|</span>
+        <a href="privacy.html">Privacy Policy</a>
+        <span class="footer-divider">|</span>
+        <a href="terms.html">Terms of Service</a>
+    </footer>
+
+    <script src="supabase.js"></script>
+    <script src="login.js"></script>
+    <script src="cookie-consent.js"></script>
+</body>
+</html>

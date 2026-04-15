@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register — SleekConnect | Identity Verification</title>
+    <meta name="description" content="Apply for access to SleekConnect. Complete live camera identity verification to join the secure video matchmaking platform.">
+    <meta name="robots" content="index, follow">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="ux-body">
+    <div id="toast-container" class="toast-container"></div>
+    
+    <div class="split-glass-card">
+        <div class="brand-section">
+            <div class="logo-box">
+                <h1>Live<span class="highlight">Verify</span></h1>
+                <p>Mandatory Identity Verification</p>
+            </div>
+            <ul class="security-notes">
+                <li>
+                    <span class="icon">🚫</span>
+                    <span>Gallery uploads permanently disabled</span>
+                </li>
+                <li>
+                    <span class="icon">🚫</span>
+                    <span>False identity → instant permanent ban</span>
+                </li>
+                <li>
+                    <span class="icon">🗑️</span>
+                    <span>Image securely deleted after verification</span>
+                </li>
+                <li>
+                    <span class="icon">🔞</span>
+                    <span>You must be 18 years or older to register</span>
+                </li>
+            </ul>
+            <div class="brand-badge">
+                <span>🛡️</span> Your privacy is our priority
+            </div>
+        </div>
+        <div class="form-section">
+            <div class="header-text">
+                <h2>Apply for Access</h2>
+                <p>Live camera verification + age confirmation required.</p>
+            </div>
+            <form id="register-form" autocomplete="off">
+                <div class="ux-input-group">
+                    <label for="reg-email">Email Address</label>
+                    <input type="email" id="reg-email" required placeholder="you@example.com" autocomplete="email" />
+                </div>
+                <div class="ux-input-group">
+                    <label for="reg-password">Create Password</label>
+                    <input type="password" id="reg-password" required placeholder="Min 8 chars, uppercase, number" autocomplete="new-password" minlength="8" />
+                    <div id="password-strength" class="password-strength"><div class="bar"></div></div>
+                    <div id="password-text" class="strength-text"></div>
+                </div>
+
+                <!-- Age Verification Gate -->
+                <div class="age-gate-wrapper">
+                    <label>🔞 Age Verification (18+ Only)</label>
+                    <div class="dob-inputs">
+                        <select id="dob-day" required>
+                            <option value="" disabled selected>Day</option>
+                        </select>
+                        <select id="dob-month" required>
+                            <option value="" disabled selected>Month</option>
+                        </select>
+                        <select id="dob-year" required>
+                            <option value="" disabled selected>Year</option>
+                        </select>
+                    </div>
+                    <div id="age-error" class="age-error">You must be at least 18 years old to register.</div>
+                    <div id="age-success" class="age-success hidden">✅ Age verified</div>
+                </div>
+
+                <!-- Camera Verification -->
+                <div class="camera-wrapper">
+                    <label style="display:block; font-size:0.82rem; font-weight:500; color:var(--text-secondary); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">📸 Live Camera Verification</label>
+                    <div id="camera-box" class="camera-box">
+                        <video id="webcam" autoplay playsinline class="hidden"></video>
+                        <canvas id="canvas" class="hidden"></canvas>
+                        <img id="selfie-preview" class="hidden" alt="Verification selfie preview" />
+                        <div id="cam-overlay" class="cam-overlay">Camera Feed</div>
+                    </div>
+                    <div class="cam-controls">
+                        <button type="button" id="start-cam-btn" class="cam-action">📷 Start Camera</button>
+                        <button type="button" id="capture-btn" class="hidden cam-action capture">📸 Capture</button>
+                        <button type="button" id="retake-btn" class="hidden cam-action retake">♻️ Retake</button>
+                    </div>
+                </div>
+
+                <button type="submit" id="register-btn" disabled class="ux-primary-btn disabled-btn">Request Access</button>
+            </form>
+            <div class="auth-link">
+                Already verified? <a href="index.html">Login here</a>
+            </div>
+        </div>
+    </div>
+
+    <footer class="page-footer">
+        <span>© 2026 SleekConnect. All rights reserved.</span>
+        <span class="footer-divider">|</span>
+        <a href="privacy.html">Privacy Policy</a>
+        <span class="footer-divider">|</span>
+        <a href="terms.html">Terms of Service</a>
+    </footer>
+
+    <script src="supabase.js"></script>
+    <script src="register.js"></script>
+    <script src="cookie-consent.js"></script>
+</body>
+</html>

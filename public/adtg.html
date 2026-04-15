@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard — SleekConnect Internal</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --accent: #f43f5e;
+            --accent-hover: #e11d48;
+            --accent-glow: rgba(244, 63, 94, 0.25);
+        }
+    </style>
+    <!-- Anti-clickjack -->
+    <script>if(self!==top){top.location=self.location;}</script>
+</head>
+<body class="ux-body">
+    <div id="toast-container" class="toast-container"></div>
+    
+    <div class="glass-container" style="width:96%; max-width:1150px; padding:2rem 2.5rem; height:auto; min-height:80vh;">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">Agent<span class="highlight" style="background:linear-gradient(135deg,#f43f5e,#fb7185);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Panel</span></div>
+            <div class="header-actions">
+                <span style="color:var(--text-muted); font-size:0.82rem;">Security Clearance: Level 1</span>
+                <button id="logout-btn" class="ux-danger-btn">Secure Logout</button>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="admin-stats" id="admin-stats">
+            <div class="stat-card pending">
+                <div class="stat-label">Pending Review</div>
+                <div class="stat-value" id="stat-pending">—</div>
+            </div>
+            <div class="stat-card approved">
+                <div class="stat-label">Approved Users</div>
+                <div class="stat-value" id="stat-approved">—</div>
+            </div>
+            <div class="stat-card total">
+                <div class="stat-label">Total Registrations</div>
+                <div class="stat-value" id="stat-total">—</div>
+            </div>
+        </div>
+
+        <!-- Section Title -->
+        <div style="margin-bottom:1.5rem;">
+            <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:0.3rem;">Pending Identity Verifications</h2>
+            <p style="color:var(--text-muted); font-size:0.88rem;">Review live selfie captures and profile data. Images are destroyed upon action.</p>
+        </div>
+
+        <!-- User Table -->
+        <div class="admin-table-wrap" style="overflow-x:auto;">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>User Email</th>
+                        <th>Identity Check (Live)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="user-table-body">
+                    <tr><td colspan="3" class="empty-state">Initialising security database…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="img-modal" class="img-modal hidden">
+        <img id="modal-img" src="" alt="Full Selfie">
+        <button id="close-modal" class="ux-danger-btn close-btn">✕ Close</button>
+    </div>
+
+    <script src="supabase.js"></script>
+    <script src="adtg.js"></script>
+</body>
+</html>

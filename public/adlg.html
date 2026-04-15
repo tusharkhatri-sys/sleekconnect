@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Access — Internal Use Only</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --accent: #f43f5e;
+            --accent-hover: #e11d48;
+            --accent-glow: rgba(244, 63, 94, 0.25);
+            --accent-soft: rgba(244, 63, 94, 0.1);
+        }
+        .brand-section {
+            background: linear-gradient(155deg, #1c0a0f 0%, #0f0a14 50%, #140a10 100%);
+        }
+        .logo-box .highlight {
+            background: linear-gradient(135deg, #f43f5e, #fb7185);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+    <!-- Anti-clickjack -->
+    <script>if(self!==top){top.location=self.location;}</script>
+</head>
+<body class="ux-body">
+    <div id="toast-container" class="toast-container"></div>
+    
+    <div class="split-glass-card admin-brand">
+        <div class="brand-section">
+            <div class="logo-box">
+                <h1>Agent<span class="highlight">Portal</span></h1>
+                <p>Internal Security Management</p>
+            </div>
+            <div style="margin-top: 2.5rem; color: var(--text-secondary); font-size: 0.88rem; position:relative; z-index:1;">
+                <p>This portal is for authorized agents only.</p>
+                <p style="margin-top:0.5rem; font-size:0.82rem; color:var(--text-muted);">All login attempts are logged and monitored.</p>
+            </div>
+        </div>
+        <div class="form-section">
+            <div class="header-text">
+                <h2>Secure Login</h2>
+                <p>Enter agent credentials.</p>
+            </div>
+            <form id="admin-login-form" autocomplete="off">
+                <div class="ux-input-group">
+                    <label for="admin-email">Agent Email</label>
+                    <input type="email" id="admin-email" required placeholder="agent@sleekconnect.com" autocomplete="email" />
+                </div>
+                <div class="ux-input-group">
+                    <label for="admin-password">Access Key</label>
+                    <input type="password" id="admin-password" required placeholder="Enter access key" autocomplete="current-password" />
+                </div>
+                <button type="submit" id="admin-login-btn" class="ux-primary-btn">Initialize Session</button>
+            </form>
+            <div class="auth-link">
+                Accidental Access? <a href="index.html">Return to Public Site</a>
+            </div>
+        </div>
+    </div>
+    
+    <script src="supabase.js"></script>
+    <script src="adlg.js"></script>
+</body>
+</html>
