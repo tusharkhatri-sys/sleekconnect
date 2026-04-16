@@ -14,8 +14,15 @@ const supabaseUrl = 'https://onwaakkxvnbmbdmwzegg.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ud2Fha2t4dm5ibWJkbXd6ZWdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjc0NTYsImV4cCI6MjA5MTY0MzQ1Nn0.QEUmMP9RBuhiEVRaQoSaZWAqOlXtFj5TV23YyAnH8EQ';
 
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+    }
 });
+
+const socket = io(); // Admin socket connection
+
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -37,7 +44,7 @@ function showToast(message, type) {
     setTimeout(function () {
         toast.style.animation = 'toastSlideOut 0.3s forwards';
         setTimeout(function () { toast.remove(); }, 300);
-    }, 3500);
+    }, 3000);
 }
 
 // ========== TAB SWITCHING ==========
@@ -52,6 +59,7 @@ window.switchTab = function (tabId) {
     // Lazy-load on tab switch
     if (tabId === 'tab-delrequests') loadDeleteRequests();
     if (tabId === 'tab-allusers')    loadAllUsers();
+    if (tabId === 'tab-reports')     loadUserReports();
 };
 
 // ========== ADMIN ACCESS CHECK ==========
@@ -102,15 +110,27 @@ async function loadStats() {
         var banned    = nonAdmins.filter(function (p) { return p.banned; }).length;
         var delCount  = delReqs.length;
 
-        setText('stat-pending',  pending);
-        setText('stat-approved', approved);
-        setText('stat-total',    total);
-        setText('stat-delreq',   delCount);
-        setText('stat-banned',   banned);
+        var statPending = document.getElementById('stat-pending');
+        var statApproved = document.getElementById('stat-approved');
+        var statTotal = document.getElementById('stat-total');
+        var statBanned = document.getElementById('stat-banned');
 
-        // Update tab badges
-        setText('badge-pending', pending);
-        setText('badge-delreq',  delCount);
+        if (statPending) statPending.textContent = pending;
+        if (statApproved) statApproved.textContent = approved;
+        if (statTotal) statTotal.textContent = total;
+        if (statBanned) statBanned.textContent = banned;
+
+        // Sync tab badges
+        var bPending = document.getElementById('badge-pending');
+        if (bPending) bPending.textContent = pending;
+
+        // Fetch reports count for badge
+        var reportsRes = await supabaseClient.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+        var bReports = document.getElementById('badge-reports');
+        if (bReports) bReports.textContent = reportsRes.count || 0;
+        var statDelReq = document.getElementById('stat-delreq');
+        if (statDelReq) statDelReq.textContent = reportsRes.count || 0;
+
     } catch (err) {
         console.error('Stats error:', err);
     }
@@ -599,14 +619,113 @@ if (modal) {
     });
 }
 
-// ========== LOGOUT ==========
-var logoutBtn = document.getElementById('logout-btn');
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', async function () {
-        await supabaseClient.auth.signOut();
-        window.location.href = 'adlg.html';
+// ========== USER REPORTS TAB ==========
+async function loadUserReports() {
+    var tbody = document.getElementById('reports-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="5">Loading reports…</td></tr>';
+
+    try {
+        var { data: reports, error } = await supabaseClient
+            .from('reports')
+            .select('*')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        tbody.innerHTML = '';
+
+        if (!reports || reports.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">✅ No pending reports. All users are behaving!</td></tr>';
+            return;
+        }
+
+        for (var i = 0; i < reports.length; i++) {
+            var r = reports[i];
+            var tr = document.createElement('tr');
+
+            // Fetch emails for reporter and reported
+            var [reporterRes, reportedRes] = await Promise.all([
+                supabaseClient.from('profiles').select('email').eq('id', r.reporter_id).single(),
+                supabaseClient.from('profiles').select('email').eq('id', r.reported_id).single()
+            ]);
+
+            tr.innerHTML = `
+                <td style="font-size:0.8rem;">${reporterRes.data?.email || 'Unknown'}</td>
+                <td style="font-weight:600; color:var(--danger);">${reportedRes.data?.email || 'Unknown'}</td>
+                <td><span class="badge badge-delreq">${r.reason}</span></td>
+                <td style="font-size:0.75rem; color:var(--text-muted);">${new Date(r.created_at).toLocaleString()}</td>
+                <td>
+                    <button class="action-bt btn-ban" onclick="handleReportAction('${r.id}', '${r.reported_id}', 'ban')">🚫 Ban</button>
+                    <button class="action-bt btn-dismiss" onclick="handleReportAction('${r.id}', null, 'dismiss')">✕ Dismiss</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    } catch (err) {
+        console.error('Reports error:', err);
+        showToast('Failed to load reports', 'error');
+    }
+}
+
+async function handleReportAction(reportId, userId, action) {
+    if (!confirm('Are you sure you want to ' + action + '?')) return;
+
+    try {
+        if (action === 'ban') {
+            await supabaseClient.from('profiles').update({ banned: true, is_admin_approved: false }).eq('id', userId);
+            await supabaseClient.from('reports').update({ status: 'actioned' }).eq('id', reportId);
+            showToast('User Banned & Report Actioned', 'success');
+        } else {
+            await supabaseClient.from('reports').update({ status: 'dismissed' }).eq('id', reportId);
+            showToast('Report Dismissed', 'info');
+        }
+        loadUserReports();
+        loadStats();
+    } catch (err) {
+        showToast('Action failed', 'error');
+    }
+}
+
+// ========== BROADCAST TOOL ==========
+var broadcastBtn = document.getElementById('broadcast-btn');
+var broadcastMsg = document.getElementById('broadcast-msg');
+
+if (broadcastBtn) {
+    broadcastBtn.addEventListener('click', function() {
+        var msg = broadcastMsg.value.trim();
+        if (!msg) return;
+
+        socket.emit('admin-broadcast', { message: msg, type: 'info' });
+        showToast('Announcement broadcasted to all users!', 'success');
+        broadcastMsg.value = '';
     });
 }
 
-// ========== INIT ==========
+// ========== LIVE STATS SOCKET ==========
+socket.on('live-stats-data', function(data) {
+    if (!data) return;
+    
+    var elOnline = document.getElementById('stat-online');
+    var elActive = document.getElementById('stat-active-calls');
+    var elWaiting = document.getElementById('stat-waiting');
+
+    if (elOnline)  elOnline.textContent  = data.online || 0;
+    if (elActive)  elActive.textContent  = data.activeCalls || 0;
+    if (elWaiting) elWaiting.textContent = data.waiting || 0;
+});
+
+
+// Periodic stats request
+setInterval(function() {
+    socket.emit('get-live-stats');
+}, 5000);
+
+// ========== LOGOUT ==========
+document.getElementById('logout-btn').addEventListener('click', async function() {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'adlg.html';
+});
+
+// ========== INITIALIZE ==========
 checkAdmin();

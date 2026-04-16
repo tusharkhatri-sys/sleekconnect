@@ -311,17 +311,21 @@
 
         <!-- Stats Cards -->
         <div class="admin-stats" id="admin-stats">
-            <div class="stat-card pending">
-                <div class="stat-label">Pending Review</div>
-                <div class="stat-value" id="stat-pending">—</div>
-            </div>
-            <div class="stat-card approved">
-                <div class="stat-label">Approved Users</div>
-                <div class="stat-value" id="stat-approved">—</div>
-            </div>
             <div class="stat-card total">
                 <div class="stat-label">Total Users</div>
                 <div class="stat-value" id="stat-total">—</div>
+            </div>
+            <div class="stat-card approved">
+                <div class="stat-label">Online Now</div>
+                <div class="stat-value" id="stat-online" style="color:var(--success);">0</div>
+            </div>
+            <div class="stat-card delreq">
+                <div class="stat-label">Active Calls</div>
+                <div class="stat-value" id="stat-active-calls" style="color:var(--accent);">0</div>
+            </div>
+            <div class="stat-card banned">
+                <div class="stat-label">Waiting in Queue</div>
+                <div class="stat-value" id="stat-waiting" style="color:var(--warning);">0</div>
             </div>
             <div class="stat-card delreq">
                 <div class="stat-label">Delete Requests</div>
@@ -340,12 +344,20 @@
                 <span class="tab-badge" id="badge-pending">0</span>
             </button>
             <button class="tab-btn" data-tab="tab-delrequests" id="nav-delrequests" onclick="switchTab('tab-delrequests')">
-                🗑️ Delete Requests
+                🗑️ Delete Req
                 <span class="tab-badge" id="badge-delreq">0</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-reports" id="nav-reports" onclick="switchTab('tab-reports')">
+                🚩 Reports
+                <span class="tab-badge" id="badge-reports">0</span>
             </button>
             <button class="tab-btn" data-tab="tab-allusers" id="nav-allusers" onclick="switchTab('tab-allusers')">
                 👥 All Users
             </button>
+            <button class="tab-btn" data-tab="tab-broadcast" id="nav-broadcast" onclick="switchTab('tab-broadcast')">
+                📣 Broadcast
+            </button>
+
         </div>
 
         <!-- ═══ TAB 1: Pending Approvals ═══ -->
@@ -379,7 +391,7 @@
             <div class="section-head">
                 <div>
                     <h2>Account Deletion Requests</h2>
-                    <p>Users who have requested permanent account deletion. Approve to delete, or dismiss to reject.</p>
+                    <p>Users who have requested permanent account deletion.</p>
                 </div>
                 <button class="refresh-btn" onclick="loadDeleteRequests()">↻ Refresh</button>
             </div>
@@ -399,6 +411,34 @@
                 </table>
             </div>
         </div>
+
+        <!-- ═══ TAB 4: User Reports ═══ -->
+        <div id="tab-reports" class="tab-panel">
+            <div class="section-head">
+                <div>
+                    <h2>User Conduct Reports 🚩</h2>
+                    <p>Reports filed by users during live calls. Process them to keep the platform safe.</p>
+                </div>
+                <button class="refresh-btn" onclick="loadUserReports()">↻ Refresh</button>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Reporter</th>
+                            <th>Reported User</th>
+                            <th>Reason</th>
+                            <th>Reported At</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-table-body">
+                        <tr class="loading-row"><td colspan="5">Loading reports…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
 
         <!-- ═══ TAB 3: All Users ═══ -->
         <div id="tab-allusers" class="tab-panel">
@@ -429,6 +469,29 @@
                 </table>
             </div>
         </div>
+
+        <!-- ═══ TAB 5: Broadcast ═══ -->
+        <div id="tab-broadcast" class="tab-panel">
+            <div class="section-head">
+                <div>
+                    <h2>Global Broadcast Tool</h2>
+                    <p>Send a real-time message to all online users. Use responsibly.</p>
+                </div>
+            </div>
+            <div class="glass-card" style="padding:2rem; max-width:600px; border:1px solid var(--glass-border);">
+                <label style="display:block; font-size:0.8rem; color:var(--text-secondary); margin-bottom:8px;">ANNOUNCEMENT MESSAGE</label>
+                <textarea id="broadcast-msg" placeholder="Type your announcement here..." style="
+                    width:100%; min-height:120px; background:rgba(0,0,0,0.2); border:1px solid var(--glass-border);
+                    border-radius:12px; padding:1rem; color:white; font-family:'Outfit',sans-serif; outline:none;
+                    resize:none; margin-bottom:1.5rem;
+                "></textarea>
+                
+                <div style="display:flex; gap:10px;">
+                    <button id="broadcast-btn" class="ux-primary-btn" style="flex:1;">📢 Send Broadcast</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Selfie Modal -->

@@ -32,6 +32,11 @@ const nextBtn     = document.getElementById('next-btn');
 const stopBtn     = document.getElementById('stop-btn');
 const muteBtn     = document.getElementById('mute-btn');
 const videoOffBtn = document.getElementById('video-off-btn');
+const reportBtn   = document.getElementById('report-btn');
+const reportModal = document.getElementById('report-modal');
+const closeReportModal = document.getElementById('close-report-modal');
+const reportOptions = document.querySelectorAll('.report-opt');
+
 
 let currentUser   = null;
 let currentRoomId = null;
@@ -39,7 +44,9 @@ let peerConnection;
 let localStream;
 let remoteStream;
 let isSearching   = false;
-let iceTimeout    = null;   // connection watchdog timer
+let currentPartnerId = null;  // Track who we are talking to
+let iceTimeout    = null;     // connection watchdog timer
+
 
 /* ═══════════════════════════════════════════════════
    ICE SERVER CONFIG
@@ -199,14 +206,19 @@ socket.on('waiting', function () {
     console.log('[Socket] Waiting in queue');
 });
 
-// ========== SOCKET — partner matched ==========
+// ========== SOCKET — partner found ==========
 socket.on('partner-found', async function (data) {
-    console.log('[Socket] Partner found! Role:', data.role, 'Room:', data.roomId);
+    console.log('[Socket] Partner Found:', data);
     currentRoomId = data.roomId;
-    isSearching   = false;
+    currentPartnerId = data.partnerId; // ID for reporting system
+    isSearching = false;
+
+    // Show report button now that we have a partner
+    if (reportBtn) reportBtn.classList.remove('hidden');
 
     if (queueStatus) queueStatus.classList.add('hidden');
-    setRemoteLabel('⏳ Connecting to stranger…');
+    setRemoteLabel('⚡ Establishing secure P2P connection…');
+
     strangerLeftMsg.classList.add('hidden');
 
     // Ensure we have local stream (edge case: fast reconnect)

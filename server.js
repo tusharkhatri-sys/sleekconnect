@@ -123,6 +123,8 @@ function isValidUUID(str) {
 }
 
 let waitingQueue = [];
+let activeRooms = new Set(); // Track unique active rooms
+
 
 io.on('connection', function(socket) {
     console.log('Socket connected:', socket.id);
@@ -150,8 +152,11 @@ io.on('connection', function(socket) {
             var partnerSocket = io.sockets.sockets.get(partner.socketId);
             if (partnerSocket) partnerSocket.join(roomId);
 
-            socket.emit('partner-found', { roomId: roomId, role: 'initiator' });
-            io.to(partner.socketId).emit('partner-found', { roomId: roomId, role: 'receiver' });
+            activeRooms.add(roomId);
+
+            // Share IDs for reporting system
+            socket.emit('partner-found', { roomId: roomId, role: 'initiator', partnerId: partner.userId });
+            io.to(partner.socketId).emit('partner-found', { roomId: roomId, role: 'receiver', partnerId: userId });
 
             console.log('Matched ' + socket.id + ' with ' + partner.socketId);
         } else {
@@ -159,6 +164,7 @@ io.on('connection', function(socket) {
             socket.emit('waiting');
             console.log('User ' + socket.id + ' waiting. Queue: ' + waitingQueue.length);
         }
+
     });
 
     // WebRTC Signaling
@@ -191,10 +197,12 @@ io.on('connection', function(socket) {
         rooms.forEach(function(roomId) {
             if (roomId !== socket.id) {
                 socket.to(roomId).emit('stranger-left');
+                activeRooms.delete(roomId); // Clean up active room
                 socket.leave(roomId);
             }
         });
     };
+
 
     socket.on('leave-partner', function() {
         if (!checkSocketRate(socket.id)) return;
@@ -206,7 +214,30 @@ io.on('connection', function(socket) {
         delete socketRateLimit[socket.id];
         handleDisconnection();
     });
+
+    // --- ADMIN SYSTEM EVENTS ---
+    
+    // Broadcast message to all users
+    socket.on('admin-broadcast', function(data) {
+        if (!data || !data.message) return;
+        // Broadcast to everyone including admin
+        io.emit('broadcast-receive', { 
+            message: data.message, 
+            type: data.type || 'info',
+            timestamp: Date.now()
+        });
+    });
+
+    // Send live stats to admin
+    socket.on('get-live-stats', function() {
+        socket.emit('live-stats-data', {
+            online:   io.engine.clientsCount,
+            waiting:  waitingQueue.length,
+            activeCalls: activeRooms.size
+        });
+    });
 });
+
 
 // Cleanup stale rate limit entries every 5 minutes
 setInterval(function() {

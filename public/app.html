@@ -380,12 +380,34 @@
                 <div class="call-controls">
                     <button id="mute-btn" class="ctrl-btn" title="Mute Audio">🎤</button>
                     <button id="video-off-btn" class="ctrl-btn" title="Toggle Video">📷</button>
+                    <button id="report-btn" class="ctrl-btn danger hidden" title="Report Stranger">🚩</button>
                     <button id="next-btn" class="ctrl-btn next" title="Skip to Next">NEXT</button>
                     <button id="stop-btn" class="ctrl-btn end" title="Stop Matchmaking">⏹</button>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="ux-modal hidden">
+        <div class="glass-card modal-content" style="max-width:400px; padding:2rem;">
+            <h3 style="margin-bottom:1rem; color:var(--danger);">Report Stranger</h3>
+            <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:1.5rem;">
+                Help us keep SleekConnect safe. Why are you reporting this user?
+            </p>
+            
+            <div class="report-options" style="display:flex; flex-direction:column; gap:10px;">
+                <button class="report-opt" data-reason="Inappropriate Content">🔞 Inappropriate Content</button>
+                <button class="report-opt" data-reason="Abusive Behavior">😠 Abusive Behavior</button>
+                <button class="report-opt" data-reason="Spam/Scam">🤖 Spam / Scam</button>
+                <button class="report-opt" data-reason="Underage User">👶 Underage User</button>
+                <button class="report-opt" data-reason="Other">❓ Other</button>
+            </div>
+
+            <button id="close-report-modal" class="ux-ghost-btn" style="width:100%; margin-top:1.5rem;">Cancel</button>
+        </div>
+    </div>
+
 
     <footer class="app-footer">
         <span>© 2026 SleekConnect</span>
