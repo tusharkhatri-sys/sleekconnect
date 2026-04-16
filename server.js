@@ -40,9 +40,14 @@ app.use(function(req, res, next) {
     next();
 });
 
-// Block admin pages from being indexed (extra safety)
+// Block admin and password reset pages from being indexed
 app.use(function(req, res, next) {
-    if (req.path.startsWith('/adlg') || req.path.startsWith('/adtg')) {
+    if (
+        req.path.startsWith('/adlg') ||
+        req.path.startsWith('/adtg') ||
+        req.path.startsWith('/forgot-password') ||
+        req.path.startsWith('/reset-password')
+    ) {
         res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
     next();
@@ -51,7 +56,7 @@ app.use(function(req, res, next) {
 // Serve static files
 app.use(express.static('public'));
 
-// robots.txt — allow public pages, block admin
+// robots.txt — allow public pages, block admin & sensitive
 app.get('/robots.txt', function(req, res) {
     res.type('text/plain');
     res.send([
@@ -59,6 +64,8 @@ app.get('/robots.txt', function(req, res) {
         'Allow: /',
         'Disallow: /adlg.html',
         'Disallow: /adtg.html',
+        'Disallow: /forgot-password.html',
+        'Disallow: /reset-password.html',
         '',
         'Sitemap: https://sleekconnect.com/sitemap.xml'
     ].join('\n'));
