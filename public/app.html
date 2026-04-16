@@ -328,9 +328,22 @@
             <div class="logo">Sleek<span class="highlight">Connect</span></div>
             <div class="header-actions">
                 <span id="user-status" class="user-badge">Verified Identity ✅</span>
+                <a href="account-settings.html" id="settings-btn" style="
+                    display:inline-flex; align-items:center; gap:5px;
+                    padding:6px 14px; border-radius:20px;
+                    background:rgba(255,255,255,0.05);
+                    border:1px solid var(--glass-border);
+                    color:var(--text-secondary); font-size:0.82rem;
+                    font-family:'Outfit',sans-serif; font-weight:500;
+                    text-decoration:none; transition:all 0.2s;
+                " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';"
+                   onmouseout="this.style.borderColor='var(--glass-border)';this.style.color='var(--text-secondary)';">
+                    ⚙️ Settings
+                </a>
                 <button id="logout-btn" class="ux-danger-btn">Exit</button>
             </div>
         </div>
+
 
         <!-- Main Content -->
         <div class="app-main">

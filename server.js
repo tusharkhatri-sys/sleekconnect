@@ -40,13 +40,14 @@ app.use(function(req, res, next) {
     next();
 });
 
-// Block admin and password reset pages from being indexed
+// Block admin, password reset, and account-settings from being indexed
 app.use(function(req, res, next) {
     if (
         req.path.startsWith('/adlg') ||
         req.path.startsWith('/adtg') ||
         req.path.startsWith('/forgot-password') ||
-        req.path.startsWith('/reset-password')
+        req.path.startsWith('/reset-password') ||
+        req.path.startsWith('/account-settings')
     ) {
         res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }

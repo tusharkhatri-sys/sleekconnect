@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Settings — SleekConnect</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .settings-card {
+            width: 94%;
+            max-width: 680px;
+            background: var(--glass-bg-solid);
+            backdrop-filter: blur(30px) saturate(1.5);
+            -webkit-backdrop-filter: blur(30px) saturate(1.5);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            animation: cardEntrance 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+            position: relative;
+            z-index: 1;
+        }
+
+        .settings-header {
+            padding: 1.8rem 2rem 1.4rem;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .settings-header .logo { font-size: 1.3rem; font-weight: 700; }
+
+        .settings-body { padding: 2rem; }
+
+        /* Info block */
+        .account-info-block {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 1.2rem 1.4rem;
+            background: var(--accent-soft);
+            border: 1px solid rgba(129,140,248,0.12);
+            border-radius: var(--radius-md);
+            margin-bottom: 2rem;
+        }
+        .account-avatar {
+            width: 52px; height: 52px;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; font-weight: 700; color: white;
+            flex-shrink: 0;
+        }
+        .account-info-text .name { font-weight: 600; font-size: 1rem; }
+        .account-info-text .email { font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px; }
+
+        /* Sections */
+        .settings-section {
+            margin-bottom: 1.6rem;
+            padding: 1.4rem 1.6rem;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.015);
+        }
+        .settings-section h3 {
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        /* Danger zone */
+        .danger-zone {
+            border-color: rgba(248,113,113,0.2);
+            background: rgba(248,113,113,0.03);
+        }
+        .danger-zone h3 { color: var(--danger); }
+
+        .danger-desc {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.65;
+            margin-bottom: 1.2rem;
+        }
+
+        /* Warning box */
+        .warn-box {
+            background: rgba(251,191,36,0.07);
+            border: 1px solid rgba(251,191,36,0.18);
+            border-radius: var(--radius-sm);
+            padding: 0.9rem 1.1rem;
+            font-size: 0.82rem;
+            color: var(--warning);
+            margin-bottom: 1.2rem;
+            line-height: 1.6;
+        }
+
+        /* Delete status badge */
+        .delete-status-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 1rem 1.2rem;
+            background: rgba(248,113,113,0.07);
+            border: 1px solid rgba(248,113,113,0.2);
+            border-radius: var(--radius-md);
+            margin-bottom: 1.2rem;
+        }
+        .delete-status-banner .icon { font-size: 1.3rem; }
+        .delete-status-banner .text { font-size: 0.88rem; color: var(--danger); line-height: 1.5; }
+        .delete-status-banner .text strong { font-weight: 700; }
+
+        /* Reason textarea */
+        .reason-wrap { margin-bottom: 1rem; }
+        .reason-wrap label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .reason-wrap textarea {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-md);
+            padding: 0.85rem 1rem;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 90px;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .reason-wrap textarea:focus {
+            border-color: var(--danger);
+            box-shadow: 0 0 0 3px rgba(248,113,113,0.15);
+        }
+        .reason-wrap textarea::placeholder { color: var(--text-muted); }
+
+        /* Confirm checkbox */
+        .confirm-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.2rem;
+            cursor: pointer;
+            line-height: 1.5;
+        }
+        .confirm-check input[type="checkbox"] {
+            margin-top: 3px;
+            accent-color: var(--danger);
+            width: 16px; height: 16px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        /* Danger btn full width */
+        .full-danger-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+            color: white;
+            border: none;
+            padding: 0.95rem;
+            border-radius: var(--radius-md);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .full-danger-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(248,113,113,0.35);
+        }
+        .full-danger-btn:disabled {
+            opacity: 0.45; cursor: not-allowed; transform: none !important;
+        }
+
+        /* Cancel request btn */
+        .cancel-del-btn {
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            color: var(--text-secondary);
+            padding: 0.75rem;
+            border-radius: var(--radius-md);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.25s;
+            margin-top: 0.6rem;
+        }
+        .cancel-del-btn:hover { border-color: var(--warning); color: var(--warning); }
+
+        /* Back link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+            font-size: 0.87rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--text-primary); }
+    </style>
+</head>
+<body class="ux-body">
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="settings-card">
+        <!-- Header -->
+        <div class="settings-header">
+            <div class="logo">Sleek<span class="highlight">Connect</span> &nbsp;<span style="font-size:0.8rem; font-weight:400; color:var(--text-muted);">Account Settings</span></div>
+            <a href="app.html" class="back-link" id="back-to-app">← Back to App</a>
+        </div>
+
+        <div class="settings-body">
+
+            <!-- Account info -->
+            <div class="account-info-block" id="account-info-block">
+                <div class="account-avatar" id="account-avatar">…</div>
+                <div class="account-info-text">
+                    <div class="name" id="account-email-display">Loading…</div>
+                    <div class="email" id="account-status-display">Verified Account ✅</div>
+                </div>
+            </div>
+
+            <!-- Change Password -->
+            <div class="settings-section">
+                <h3>🔑 Change Password</h3>
+                <p style="font-size:0.87rem; color:var(--text-secondary); margin-bottom:1rem; line-height:1.6;">
+                    To change your password, we'll send a secure reset link to your registered email.
+                </p>
+                <button id="send-pw-reset-btn" class="ux-primary-btn" style="margin-top:0;">
+                    Send Password Reset Email
+                </button>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="settings-section danger-zone">
+                <h3>⚠️ Danger Zone — Delete Account</h3>
+
+                <!-- Delete request pending state (hidden by default) -->
+                <div id="delete-pending-state" style="display:none;">
+                    <div class="delete-status-banner">
+                        <span class="icon">🗑️</span>
+                        <div class="text">
+                            <strong>Deletion Request Pending</strong><br>
+                            Your account deletion request has been submitted and is awaiting admin review.<br>
+                            You can cancel this request below.
+                        </div>
+                    </div>
+                    <button class="cancel-del-btn" id="cancel-delete-btn">
+                        ↩ Cancel Deletion Request
+                    </button>
+                </div>
+
+                <!-- Delete request form (shown when no pending request) -->
+                <div id="delete-form-state">
+                    <p class="danger-desc">
+                        Submitting a delete request will flag your account for permanent removal.
+                        An admin must review and approve the request. Once approved, your account,
+                        profile data, and all associated content will be permanently deleted.
+                    </p>
+
+                    <div class="warn-box">
+                        ⚠️ <strong>This cannot be undone.</strong> All your data will be permanently erased.
+                        You have up to 24 hours to cancel this request before admin processes it.
+                    </div>
+
+                    <div class="reason-wrap">
+                        <label for="delete-reason">Reason for leaving (optional)</label>
+                        <textarea id="delete-reason" placeholder="Tell us why you're leaving… (optional)" maxlength="500"></textarea>
+                    </div>
+
+                    <label class="confirm-check">
+                        <input type="checkbox" id="delete-confirm-check" />
+                        I understand this action is permanent and my account will be deleted after admin approval.
+                    </label>
+
+                    <button id="submit-delete-btn" class="full-danger-btn" disabled>
+                        🗑️ Request Account Deletion
+                    </button>
+                </div>
+            </div>
+
+            <!-- Logout -->
+            <div style="text-align:center; margin-top:0.5rem;">
+                <button id="logout-btn" class="ux-ghost-btn" style="width:100%;">
+                    Sign Out from This Device
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="supabase.js"></script>
+    <script src="account-settings.js"></script>
+</body>
+</html>

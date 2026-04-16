@@ -8,20 +8,298 @@
     <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Anti-clickjack -->
+    <script>if(self!==top){top.location=self.location;}</script>
     <style>
         :root {
             --accent: #f43f5e;
             --accent-hover: #e11d48;
             --accent-glow: rgba(244, 63, 94, 0.25);
+            --accent-soft: rgba(244, 63, 94, 0.08);
+        }
+
+        /* ── Tab Navigation ── */
+        .admin-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 1.8rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 5px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 0.65rem 1rem;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            color: var(--text-secondary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .tab-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+
+        .tab-btn.active {
+            background: rgba(244, 63, 94, 0.12);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--accent);
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 700;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            padding: 0 4px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
+        /* ── Tab Panels ── */
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── Stats Grid ── */
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 1.8rem;
+        }
+
+        .stat-card {
+            padding: 1.1rem 1.4rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.02);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); }
+
+        .stat-card.pending  { border-color: rgba(251,191,36,0.2); }
+        .stat-card.approved { border-color: rgba(52,211,153,0.2); }
+        .stat-card.total    { border-color: rgba(96,165,250,0.2); }
+        .stat-card.delreq   { border-color: rgba(248,113,113,0.3); }
+        .stat-card.banned   { border-color: rgba(168,85,247,0.2); }
+
+        .stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+        .stat-card.pending  .stat-value { color: var(--warning); }
+        .stat-card.approved .stat-value { color: var(--success); }
+        .stat-card.total    .stat-value { color: var(--info); }
+        .stat-card.delreq   .stat-value { color: var(--danger); }
+        .stat-card.banned   .stat-value { color: #a855f7; }
+
+        /* ── Section header ── */
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .section-head h2 { font-size: 1.3rem; font-weight: 700; }
+        .section-head p  { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── Search/Filter bar ── */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1.2rem;
+            flex-wrap: wrap;
+        }
+        .filter-bar input {
+            flex: 1;
+            min-width: 180px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: var(--radius-sm);
+            padding: 0.55rem 0.9rem;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.88rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .filter-bar input:focus { border-color: var(--accent); }
+        .filter-bar input::placeholder { color: var(--text-muted); }
+
+        .refresh-btn {
+            padding: 0.55rem 1rem;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Tables ── */
+        .admin-table-wrap { overflow-x: auto; border-radius: var(--radius-md); }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .admin-table th {
+            background: rgba(255,255,255,0.03);
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--glass-border);
+            white-space: nowrap;
+        }
+
+        .admin-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            color: var(--text-primary);
+            vertical-align: middle;
+        }
+
+        .admin-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .admin-table tr:last-child td { border-bottom: none; }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem !important;
+            color: var(--text-muted);
+        }
+
+        /* ── Selfie ── */
+        .selfie-thumb {
+            width: 54px; height: 54px;
+            object-fit: cover;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 2px solid var(--glass-border);
+            transition: all 0.2s;
+        }
+        .selfie-thumb:hover { transform: scale(1.08); border-color: var(--accent); }
+
+        /* ── Action buttons ── */
+        .action-bt {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 2px;
+            white-space: nowrap;
+        }
+        .btn-approve  { background: rgba(52,211,153,0.15); color: #34d399; }
+        .btn-approve:hover  { background: rgba(52,211,153,0.3); }
+        .btn-reject   { background: rgba(248,113,113,0.12); color: #f87171; }
+        .btn-reject:hover   { background: rgba(248,113,113,0.25); }
+        .btn-delete   { background: rgba(248,113,113,0.12); color: #f87171; }
+        .btn-delete:hover   { background: rgba(248,113,113,0.3); }
+        .btn-ban      { background: rgba(168,85,247,0.12); color: #a855f7; }
+        .btn-ban:hover      { background: rgba(168,85,247,0.25); }
+        .btn-unban    { background: rgba(52,211,153,0.12); color: #34d399; }
+        .btn-unban:hover    { background: rgba(52,211,153,0.25); }
+        .btn-confirm-del { background: rgba(248,113,113,0.18); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+        .btn-confirm-del:hover { background: rgba(248,113,113,0.35); }
+        .btn-dismiss  { background: rgba(255,255,255,0.05); color: var(--text-muted); }
+        .btn-dismiss:hover  { background: rgba(255,255,255,0.1); }
+
+        /* ── Status badges ── */
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .badge-pending  { background: rgba(251,191,36,0.1); color: var(--warning); }
+        .badge-approved { background: rgba(52,211,153,0.1); color: var(--success); }
+        .badge-banned   { background: rgba(248,113,113,0.1); color: var(--danger); }
+        .badge-delreq   { background: rgba(248,113,113,0.1); color: var(--danger); }
+
+        /* ── Reason text ── */
+        .reason-cell {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            max-width: 220px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ── Image modal ── */
+        .img-modal {
+            position: fixed; inset: 0; z-index: 99;
+            background: rgba(0,0,0,0.85);
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(8px);
+        }
+        .img-modal.hidden { display: none; }
+        .img-modal img {
+            max-width: 90vw; max-height: 80vh;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            transform: scaleX(-1);
+        }
+        .close-btn {
+            position: absolute;
+            top: 20px; right: 24px;
+        }
+
+        /* ── Loading spinner ── */
+        .loading-row td {
+            text-align: center;
+            padding: 2rem !important;
+            color: var(--text-muted);
         }
     </style>
-    <!-- Anti-clickjack -->
-    <script>if(self!==top){top.location=self.location;}</script>
 </head>
 <body class="ux-body">
     <div id="toast-container" class="toast-container"></div>
-    
-    <div class="glass-container" style="width:96%; max-width:1150px; padding:2rem 2.5rem; height:auto; min-height:80vh;">
+
+    <div class="glass-container" style="width:96%; max-width:1200px; padding:2rem 2.5rem; height:auto; min-height:80vh;">
+
         <!-- Header -->
         <header class="app-header">
             <div class="logo">Agent<span class="highlight" style="background:linear-gradient(135deg,#f43f5e,#fb7185);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Panel</span></div>
@@ -42,35 +320,118 @@
                 <div class="stat-value" id="stat-approved">—</div>
             </div>
             <div class="stat-card total">
-                <div class="stat-label">Total Registrations</div>
+                <div class="stat-label">Total Users</div>
                 <div class="stat-value" id="stat-total">—</div>
+            </div>
+            <div class="stat-card delreq">
+                <div class="stat-label">Delete Requests</div>
+                <div class="stat-value" id="stat-delreq">—</div>
+            </div>
+            <div class="stat-card banned">
+                <div class="stat-label">Banned</div>
+                <div class="stat-value" id="stat-banned">—</div>
             </div>
         </div>
 
-        <!-- Section Title -->
-        <div style="margin-bottom:1.5rem;">
-            <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:0.3rem;">Pending Identity Verifications</h2>
-            <p style="color:var(--text-muted); font-size:0.88rem;">Review live selfie captures and profile data. Images are destroyed upon action.</p>
+        <!-- Tab Navigation -->
+        <div class="admin-tabs">
+            <button class="tab-btn active" data-tab="tab-pending" id="nav-pending" onclick="switchTab('tab-pending')">
+                🔍 Pending Approval
+                <span class="tab-badge" id="badge-pending">0</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-delrequests" id="nav-delrequests" onclick="switchTab('tab-delrequests')">
+                🗑️ Delete Requests
+                <span class="tab-badge" id="badge-delreq">0</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-allusers" id="nav-allusers" onclick="switchTab('tab-allusers')">
+                👥 All Users
+            </button>
         </div>
 
-        <!-- User Table -->
-        <div class="admin-table-wrap" style="overflow-x:auto;">
-            <table class="admin-table">
-                <thead>
-                    <tr>
-                        <th>User Email</th>
-                        <th>Identity Check (Live)</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="user-table-body">
-                    <tr><td colspan="3" class="empty-state">Initialising security database…</td></tr>
-                </tbody>
-            </table>
+        <!-- ═══ TAB 1: Pending Approvals ═══ -->
+        <div id="tab-pending" class="tab-panel active">
+            <div class="section-head">
+                <div>
+                    <h2>Pending Identity Verifications</h2>
+                    <p>Review live selfie captures and approve or reject registrations.</p>
+                </div>
+                <button class="refresh-btn" onclick="loadDashboard()">↻ Refresh</button>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Registered</th>
+                            <th>Identity Selfie</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pending-table-body">
+                        <tr class="loading-row"><td colspan="4">Initialising security database…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ═══ TAB 2: Delete Requests ═══ -->
+        <div id="tab-delrequests" class="tab-panel">
+            <div class="section-head">
+                <div>
+                    <h2>Account Deletion Requests</h2>
+                    <p>Users who have requested permanent account deletion. Approve to delete, or dismiss to reject.</p>
+                </div>
+                <button class="refresh-btn" onclick="loadDeleteRequests()">↻ Refresh</button>
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Reason</th>
+                            <th>Requested</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="delreq-table-body">
+                        <tr class="loading-row"><td colspan="4">Loading delete requests…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ═══ TAB 3: All Users ═══ -->
+        <div id="tab-allusers" class="tab-panel">
+            <div class="section-head">
+                <div>
+                    <h2>All Registered Users</h2>
+                    <p>Manage all user accounts — ban, unban, or force-delete accounts.</p>
+                </div>
+                <button class="refresh-btn" onclick="loadAllUsers()">↻ Refresh</button>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="user-search" placeholder="🔍 Search by email…" oninput="filterUsers()" />
+            </div>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Delete Req</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allusers-table-body">
+                        <tr class="loading-row"><td colspan="5">Loading all users…</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- Image Modal -->
+    <!-- Selfie Modal -->
     <div id="img-modal" class="img-modal hidden">
         <img id="modal-img" src="" alt="Full Selfie">
         <button id="close-modal" class="ux-danger-btn close-btn">✕ Close</button>

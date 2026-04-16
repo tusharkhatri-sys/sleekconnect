@@ -1,22 +1,26 @@
 /* =============================================
-   SleekConnect — Agent Dashboard (Security Hardened)
-   XSS-safe DOM | No token in URL
+   SleekConnect — Agent Dashboard v2.0
+   Features:
+   1. Pending user approval (identity verification)
+   2. Delete request management (approve/dismiss)
+   3. All users management (ban/unban/force-delete)
+   4. Enhanced stats (5 cards)
+   5. Tab navigation
+   6. Email search filter on all-users tab
+   Security: XSS-safe DOM, UUID validation, admin-only access
    ============================================= */
+
 const supabaseUrl = 'https://onwaakkxvnbmbdmwzegg.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ud2Fha2t4dm5ibWJkbXd6ZWdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjc0NTYsImV4cCI6MjA5MTY0MzQ1Nn0.QEUmMP9RBuhiEVRaQoSaZWAqOlXtFj5TV23YyAnH8EQ';
 
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
-    auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: false
-    }
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
 });
 
-const tableBody = document.getElementById('user-table-body');
-const modal = document.getElementById('img-modal');
-const modalImg = document.getElementById('modal-img');
-const closeModalBtn = document.getElementById('close-modal');
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Cached all-users data for client-side filtering
+var _allUsersCache = [];
 
 // ========== TOAST ==========
 function showToast(message, type) {
@@ -26,25 +30,35 @@ function showToast(message, type) {
     var toast = document.createElement('div');
     toast.className = 'toast ' + type;
     var icon = type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️';
-    var iconSpan = document.createElement('span');
-    iconSpan.className = 'toast-icon';
-    iconSpan.textContent = icon;
-    var textSpan = document.createElement('span');
-    textSpan.textContent = message;
-    toast.appendChild(iconSpan);
-    toast.appendChild(textSpan);
+    var isp = document.createElement('span'); isp.className = 'toast-icon'; isp.textContent = icon;
+    var tsp = document.createElement('span'); tsp.textContent = message;
+    toast.appendChild(isp); toast.appendChild(tsp);
     container.appendChild(toast);
-    setTimeout(function() {
+    setTimeout(function () {
         toast.style.animation = 'toastSlideOut 0.3s forwards';
-        setTimeout(function() { toast.remove(); }, 300);
-    }, 3000);
+        setTimeout(function () { toast.remove(); }, 300);
+    }, 3500);
 }
 
-// ========== AGENT ACCESS VERIFICATION ==========
+// ========== TAB SWITCHING ==========
+window.switchTab = function (tabId) {
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    var panel = document.getElementById(tabId);
+    if (panel) panel.classList.add('active');
+    var btn = document.querySelector('[data-tab="' + tabId + '"]');
+    if (btn) btn.classList.add('active');
+
+    // Lazy-load on tab switch
+    if (tabId === 'tab-delrequests') loadDeleteRequests();
+    if (tabId === 'tab-allusers')    loadAllUsers();
+};
+
+// ========== ADMIN ACCESS CHECK ==========
 async function checkAdmin() {
     var userResult = await supabaseClient.auth.getUser();
     var user = userResult.data ? userResult.data.user : null;
-    
+
     if (!user) {
         window.location.href = 'adlg.html';
         return;
@@ -58,183 +72,183 @@ async function checkAdmin() {
 
     if (!profileResult.data || profileResult.data.role !== 'admin') {
         showToast('Access Denied: Agent Clearance Required', 'error');
-        setTimeout(function() { window.location.href = 'adlg.html'; }, 2000);
+        setTimeout(function () { window.location.href = 'adlg.html'; }, 2000);
     } else {
         loadDashboard();
     }
 }
 
-// ========== LOAD DASHBOARD ==========
+// ========== LOAD DASHBOARD (Pending tab) ==========
 async function loadDashboard() {
-    // Load stats
     await loadStats();
-    // Load pending users
     await loadPendingUsers();
 }
 
 // ========== STATS ==========
 async function loadStats() {
     try {
-        var allResult = await supabaseClient.from('profiles').select('id, is_admin_approved, role');
-        var profiles = allResult.data || [];
-        
-        var total = profiles.filter(function(p) { return p.role === 'user'; }).length;
-        var pending = profiles.filter(function(p) { return p.role === 'user' && !p.is_admin_approved; }).length;
-        var approved = profiles.filter(function(p) { return p.role === 'user' && p.is_admin_approved; }).length;
+        var [profilesRes, delReqRes] = await Promise.all([
+            supabaseClient.from('profiles').select('id, is_admin_approved, role, banned, delete_requested'),
+            supabaseClient.from('delete_requests').select('id').eq('status', 'pending')
+        ]);
 
-        var statPending = document.getElementById('stat-pending');
-        var statApproved = document.getElementById('stat-approved');
-        var statTotal = document.getElementById('stat-total');
-        
-        if (statPending) statPending.textContent = pending;
-        if (statApproved) statApproved.textContent = approved;
-        if (statTotal) statTotal.textContent = total;
+        var profiles  = profilesRes.data  || [];
+        var delReqs   = delReqRes.data    || [];
+
+        var nonAdmins = profiles.filter(function (p) { return p.role === 'user'; });
+        var total     = nonAdmins.length;
+        var pending   = nonAdmins.filter(function (p) { return !p.is_admin_approved && !(p.banned); }).length;
+        var approved  = nonAdmins.filter(function (p) { return p.is_admin_approved && !(p.banned); }).length;
+        var banned    = nonAdmins.filter(function (p) { return p.banned; }).length;
+        var delCount  = delReqs.length;
+
+        setText('stat-pending',  pending);
+        setText('stat-approved', approved);
+        setText('stat-total',    total);
+        setText('stat-delreq',   delCount);
+        setText('stat-banned',   banned);
+
+        // Update tab badges
+        setText('badge-pending', pending);
+        setText('badge-delreq',  delCount);
     } catch (err) {
         console.error('Stats error:', err);
     }
 }
 
-// ========== LOAD PENDING USERS (XSS-Safe) ==========
+function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = String(val);
+}
+
+// ========== FORMAT DATE ==========
+function formatDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// ════════════════════════════════════════════════
+// TAB 1: PENDING APPROVALS
+// ════════════════════════════════════════════════
 async function loadPendingUsers() {
+    var tbody = document.getElementById('pending-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Loading…</td></tr>';
+
     var result = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('is_admin_approved', false)
-        .eq('role', 'user');
+        .eq('role',  'user')
+        .or('banned.is.null,banned.eq.false');
 
     if (result.error) {
+        showToast('Error loading pending users', 'error');
         console.error(result.error);
-        showToast('Error loading users', 'error');
         return;
     }
 
     var profiles = result.data || [];
-    tableBody.innerHTML = '';
+    tbody.innerHTML = '';
 
     if (profiles.length === 0) {
-        var emptyRow = document.createElement('tr');
-        var emptyCell = document.createElement('td');
-        emptyCell.colSpan = 3;
-        emptyCell.className = 'empty-state';
-        emptyCell.textContent = 'No pending requests! All clear ✅';
-        emptyRow.appendChild(emptyCell);
-        tableBody.appendChild(emptyRow);
+        var row = tbody.insertRow();
+        var cell = row.insertCell();
+        cell.colSpan = 4;
+        cell.className = 'empty-state';
+        cell.textContent = '✅ No pending requests! All clear.';
         return;
     }
 
     for (var i = 0; i < profiles.length; i++) {
-        var p = profiles[i];
-        await renderUserRow(p);
+        await renderPendingRow(profiles[i], tbody);
     }
 }
 
-async function renderUserRow(profile) {
+async function renderPendingRow(profile, tbody) {
     // Fetch selfie
     var filesResult = await supabaseClient.storage.from('verification_selfies').list(profile.id);
-    var files = filesResult.data;
+    var files       = filesResult.data || [];
+    var imgUrl = '', fileName = '';
 
-    var imgUrl = '';
-    var fileName = '';
-    if (files && files.length > 0) {
-        fileName = profile.id + '/' + files[0].name;
-        var urlResult = supabaseClient.storage.from('verification_selfies').getPublicUrl(fileName);
-        imgUrl = urlResult.data.publicUrl;
+    if (files.length > 0) {
+        fileName  = profile.id + '/' + files[0].name;
+        var urlRes = supabaseClient.storage.from('verification_selfies').getPublicUrl(fileName);
+        imgUrl     = urlRes.data.publicUrl;
     }
 
     var tr = document.createElement('tr');
 
-    // Email cell (XSS safe — using textContent)
+    // Email (XSS-safe)
     var emailTd = document.createElement('td');
-    emailTd.textContent = profile.email;
+    emailTd.textContent = profile.email || '—';
     tr.appendChild(emailTd);
 
-    // Selfie cell
+    // Registered date
+    var dateTd = document.createElement('td');
+    dateTd.style.fontSize = '0.8rem';
+    dateTd.style.color    = 'var(--text-muted)';
+    dateTd.textContent    = formatDate(profile.created_at);
+    tr.appendChild(dateTd);
+
+    // Selfie
     var selfieTd = document.createElement('td');
     if (imgUrl) {
         var img = document.createElement('img');
-        img.src = imgUrl;
-        img.alt = 'Identity selfie';
+        img.src       = imgUrl;
+        img.alt       = 'Identity selfie';
         img.className = 'selfie-thumb';
-        img.addEventListener('click', function(url) {
-            return function() { openModal(url); };
-        }(imgUrl));
+        img.addEventListener('click', (function (url) {
+            return function () { openModal(url); };
+        }(imgUrl)));
         selfieTd.appendChild(img);
     } else {
         var noImg = document.createElement('span');
-        noImg.style.color = 'var(--text-muted)';
-        noImg.textContent = 'No Image';
+        noImg.style.color  = 'var(--text-muted)';
+        noImg.textContent  = 'No Image';
         selfieTd.appendChild(noImg);
     }
     tr.appendChild(selfieTd);
 
-    // Actions cell
+    // Actions
     var actionTd = document.createElement('td');
 
-    var approveBtn = document.createElement('button');
-    approveBtn.className = 'action-bt btn-approve';
-    approveBtn.textContent = '✓ Approve';
-    approveBtn.addEventListener('click', function(id, path) {
-        return function() { handleAction(id, path, true); };
-    }(profile.id, fileName));
-
-    var rejectBtn = document.createElement('button');
-    rejectBtn.className = 'action-bt btn-reject';
-    rejectBtn.textContent = '✕ Reject';
-    rejectBtn.addEventListener('click', function(id, path) {
-        return function() { handleAction(id, path, false); };
-    }(profile.id, fileName));
+    var approveBtn = makeBtn('✓ Approve', 'btn-approve', function () {
+        handleApproveReject(profile.id, fileName, true);
+    });
+    var rejectBtn = makeBtn('✕ Reject', 'btn-reject', function () {
+        handleApproveReject(profile.id, fileName, false);
+    });
 
     actionTd.appendChild(approveBtn);
     actionTd.appendChild(rejectBtn);
     tr.appendChild(actionTd);
 
-    tableBody.appendChild(tr);
+    tbody.appendChild(tr);
 }
 
-// ========== HANDLE APPROVE / REJECT ==========
-async function handleAction(userId, imagePath, isApprove) {
-    // Validate UUID format
-    var uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(userId)) {
-        showToast('Invalid user ID format.', 'error');
-        return;
-    }
-
-    var action = isApprove ? 'APPROVE' : 'REJECT';
-    if (!confirm('Are you sure you want to ' + action + ' this user?')) return;
+async function handleApproveReject(userId, imagePath, isApprove) {
+    if (!UUID_REGEX.test(userId)) { showToast('Invalid user ID', 'error'); return; }
+    if (!confirm((isApprove ? 'APPROVE' : 'REJECT') + ' this user?')) return;
 
     try {
         if (isApprove) {
-            var updateResult = await supabaseClient
-                .from('profiles')
+            var { error } = await supabaseClient.from('profiles')
                 .update({ is_admin_approved: true })
                 .eq('id', userId);
-
-            if (updateResult.error) throw updateResult.error;
-            showToast('User Approved Successfully', 'success');
+            if (error) throw error;
+            showToast('User Approved ✅', 'success');
         } else {
-            var deleteResult = await supabaseClient
-                .from('profiles')
+            var { error: delErr } = await supabaseClient.from('profiles')
                 .delete()
                 .eq('id', userId);
-
-            if (deleteResult.error) throw deleteResult.error;
-            showToast('User Rejected & Deleted', 'success');
+            if (delErr) throw delErr;
+            showToast('User Rejected & Removed', 'success');
         }
-
-        // Delete selfie for privacy
         if (imagePath) {
-            var storageResult = await supabaseClient.storage
-                .from('verification_selfies')
-                .remove([imagePath]);
-            if (storageResult.error) {
-                console.error('Failed to delete image:', storageResult.error);
-            } else {
-                showToast('Verification Image Deleted.', 'info');
-            }
+            await supabaseClient.storage.from('verification_selfies').remove([imagePath]);
         }
-
-        // Refresh
         await loadDashboard();
     } catch (err) {
         console.error(err);
@@ -242,29 +256,357 @@ async function handleAction(userId, imagePath, isApprove) {
     }
 }
 
-// ========== MODAL ==========
+// ════════════════════════════════════════════════
+// TAB 2: DELETE REQUESTS
+// ════════════════════════════════════════════════
+async function loadDeleteRequests() {
+    var tbody = document.getElementById('delreq-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Loading…</td></tr>';
+
+    var result = await supabaseClient
+        .from('delete_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: true });
+
+    if (result.error) {
+        showToast('Error loading delete requests', 'error');
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state" style="color:var(--danger)">Error loading data.</td></tr>';
+        return;
+    }
+
+    var requests = result.data || [];
+    tbody.innerHTML = '';
+
+    if (requests.length === 0) {
+        var row = tbody.insertRow();
+        var cell = row.insertCell();
+        cell.colSpan = 4;
+        cell.className = 'empty-state';
+        cell.textContent = '✅ No pending delete requests.';
+        return;
+    }
+
+    requests.forEach(function (req) {
+        renderDeleteRequestRow(req, tbody);
+    });
+}
+
+function renderDeleteRequestRow(req, tbody) {
+    var tr = document.createElement('tr');
+
+    // Email
+    var emailTd = document.createElement('td');
+    emailTd.textContent = req.email || '—';
+    tr.appendChild(emailTd);
+
+    // Reason
+    var reasonTd = document.createElement('td');
+    reasonTd.className = 'reason-cell';
+    var reasonSpan = document.createElement('span');
+    reasonSpan.title      = req.reason || '';
+    reasonSpan.textContent = req.reason || '(No reason given)';
+    reasonSpan.style.color = req.reason ? 'var(--text-secondary)' : 'var(--text-muted)';
+    reasonTd.appendChild(reasonSpan);
+    tr.appendChild(reasonTd);
+
+    // Date
+    var dateTd = document.createElement('td');
+    dateTd.style.fontSize = '0.8rem';
+    dateTd.style.color    = 'var(--text-muted)';
+    dateTd.textContent    = formatDate(req.requested_at);
+    tr.appendChild(dateTd);
+
+    // Actions
+    var actionTd = document.createElement('td');
+
+    var confirmBtn = makeBtn('🗑️ Delete Account', 'btn-confirm-del', function () {
+        handleConfirmDelete(req.id, req.user_id, tr);
+    });
+
+    var dismissBtn = makeBtn('✕ Dismiss', 'btn-dismiss', function () {
+        handleDismissDelete(req.id, req.user_id, tr);
+    });
+
+    actionTd.appendChild(confirmBtn);
+    actionTd.appendChild(dismissBtn);
+    tr.appendChild(actionTd);
+
+    tbody.appendChild(tr);
+}
+
+async function handleConfirmDelete(reqId, userId, trEl) {
+    if (!UUID_REGEX.test(userId)) { showToast('Invalid user ID', 'error'); return; }
+    if (!confirm('⚠️ PERMANENTLY DELETE this user and all their data? This cannot be undone.')) return;
+
+    try {
+        // 1. Delete the profile (CASCADE deletes auth.user)
+        var { error: profileErr } = await supabaseClient
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
+        if (profileErr) throw profileErr;
+
+        // 2. Remove the delete request record
+        await supabaseClient.from('delete_requests').delete().eq('id', reqId);
+
+        // 3. Remove selfie if exists
+        var filesResult = await supabaseClient.storage.from('verification_selfies').list(userId);
+        if (filesResult.data && filesResult.data.length > 0) {
+            var paths = filesResult.data.map(function (f) { return userId + '/' + f.name; });
+            await supabaseClient.storage.from('verification_selfies').remove(paths);
+        }
+
+        showToast('Account permanently deleted ✅', 'success');
+        if (trEl) trEl.remove();
+        await loadStats();
+    } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    }
+}
+
+async function handleDismissDelete(reqId, userId, trEl) {
+    if (!confirm('Dismiss this delete request? The user account will be kept active.')) return;
+
+    try {
+        // Set request to cancelled
+        var { error } = await supabaseClient
+            .from('delete_requests')
+            .update({ status: 'cancelled' })
+            .eq('id', reqId);
+        if (error) throw error;
+
+        // Remove flag from profile
+        await supabaseClient.from('profiles')
+            .update({ delete_requested: false })
+            .eq('id', userId);
+
+        showToast('Delete request dismissed. Account retained.', 'success');
+        if (trEl) trEl.remove();
+        await loadStats();
+    } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    }
+}
+
+// ════════════════════════════════════════════════
+// TAB 3: ALL USERS
+// ════════════════════════════════════════════════
+async function loadAllUsers() {
+    var tbody = document.getElementById('allusers-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="5">Loading users…</td></tr>';
+
+    var result = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('role', 'user')
+        .order('created_at', { ascending: false });
+
+    if (result.error) {
+        showToast('Error loading users', 'error');
+        return;
+    }
+
+    _allUsersCache = result.data || [];
+    renderAllUsersTable(_allUsersCache);
+}
+
+function renderAllUsersTable(profiles) {
+    var tbody = document.getElementById('allusers-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (profiles.length === 0) {
+        var row = tbody.insertRow();
+        var cell = row.insertCell();
+        cell.colSpan = 5;
+        cell.className = 'empty-state';
+        cell.textContent = 'No users found.';
+        return;
+    }
+
+    profiles.forEach(function (profile) {
+        renderAllUserRow(profile, tbody);
+    });
+}
+
+function renderAllUserRow(profile, tbody) {
+    var tr = document.createElement('tr');
+
+    // Email
+    var emailTd = document.createElement('td');
+    emailTd.textContent = profile.email || '—';
+    tr.appendChild(emailTd);
+
+    // Status badge
+    var statusTd = document.createElement('td');
+    var badge = document.createElement('span');
+    if (profile.banned) {
+        badge.className   = 'badge badge-banned';
+        badge.textContent = '🚫 Banned';
+    } else if (profile.is_admin_approved) {
+        badge.className   = 'badge badge-approved';
+        badge.textContent = '✅ Approved';
+    } else {
+        badge.className   = 'badge badge-pending';
+        badge.textContent = '⏳ Pending';
+    }
+    statusTd.appendChild(badge);
+    tr.appendChild(statusTd);
+
+    // Delete requested?
+    var delTd = document.createElement('td');
+    if (profile.delete_requested) {
+        var delBadge = document.createElement('span');
+        delBadge.className   = 'badge badge-delreq';
+        delBadge.textContent = '🗑️ Requested';
+        delTd.appendChild(delBadge);
+    } else {
+        delTd.textContent = '—';
+        delTd.style.color = 'var(--text-muted)';
+    }
+    tr.appendChild(delTd);
+
+    // Registered
+    var dateTd = document.createElement('td');
+    dateTd.style.fontSize = '0.8rem';
+    dateTd.style.color    = 'var(--text-muted)';
+    dateTd.textContent    = formatDate(profile.created_at);
+    tr.appendChild(dateTd);
+
+    // Actions
+    var actionTd = document.createElement('td');
+
+    if (profile.banned) {
+        var unbanBtn = makeBtn('✓ Unban', 'btn-unban', function () {
+            handleBan(profile.id, false, tr, profile);
+        });
+        actionTd.appendChild(unbanBtn);
+    } else {
+        var banBtn = makeBtn('🚫 Ban', 'btn-ban', function () {
+            handleBan(profile.id, true, tr, profile);
+        });
+        actionTd.appendChild(banBtn);
+    }
+
+    var forceDelBtn = makeBtn('🗑️ Delete', 'btn-delete', function () {
+        handleForceDelete(profile.id, tr);
+    });
+    actionTd.appendChild(forceDelBtn);
+
+    tr.appendChild(actionTd);
+    tbody.appendChild(tr);
+}
+
+async function handleBan(userId, isBan, trEl, profile) {
+    if (!UUID_REGEX.test(userId)) { showToast('Invalid user ID', 'error'); return; }
+    var action = isBan ? 'BAN' : 'UNBAN';
+    if (!confirm(action + ' user: ' + (profile.email || userId) + '?')) return;
+
+    try {
+        var { error } = await supabaseClient
+            .from('profiles')
+            .update({ banned: isBan, is_admin_approved: !isBan ? false : undefined })
+            .eq('id', userId);
+        if (error) throw error;
+
+        showToast('User ' + (isBan ? 'banned' : 'unbanned') + ' successfully.', 'success');
+        // Refresh the row
+        await loadAllUsers();
+        await loadStats();
+    } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    }
+}
+
+async function handleForceDelete(userId, trEl) {
+    if (!UUID_REGEX.test(userId)) { showToast('Invalid user ID', 'error'); return; }
+    if (!confirm('⚠️ PERMANENTLY DELETE this account? This cannot be undone.')) return;
+
+    try {
+        var { error } = await supabaseClient.from('profiles').delete().eq('id', userId);
+        if (error) throw error;
+
+        // Clean up selfies
+        var filesResult = await supabaseClient.storage.from('verification_selfies').list(userId);
+        if (filesResult.data && filesResult.data.length > 0) {
+            var paths = filesResult.data.map(function (f) { return userId + '/' + f.name; });
+            await supabaseClient.storage.from('verification_selfies').remove(paths);
+        }
+
+        // Clean up delete requests
+        await supabaseClient.from('delete_requests').delete().eq('user_id', userId);
+
+        showToast('User deleted permanently ✅', 'success');
+        if (trEl) trEl.remove();
+        await loadStats();
+    } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+    }
+}
+
+// ========== CLIENT-SIDE SEARCH FILTER ==========
+window.filterUsers = function () {
+    var query = (document.getElementById('user-search').value || '').toLowerCase().trim();
+    if (!query) {
+        renderAllUsersTable(_allUsersCache);
+        return;
+    }
+    var filtered = _allUsersCache.filter(function (p) {
+        return p.email && p.email.toLowerCase().includes(query);
+    });
+    renderAllUsersTable(filtered);
+};
+
+// ========== HELPER: Make button ==========
+function makeBtn(label, className, onClick) {
+    var btn = document.createElement('button');
+    btn.className = 'action-bt ' + className;
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    return btn;
+}
+
+// ========== SELFIE MODAL ==========
+var modal       = document.getElementById('img-modal');
+var modalImg    = document.getElementById('modal-img');
+var closeModalBtn = document.getElementById('close-modal');
+
 function openModal(src) {
     modalImg.src = src;
     modal.classList.remove('hidden');
 }
 
-closeModalBtn.addEventListener('click', function() {
-    modal.classList.add('hidden');
-    modalImg.src = '';
-});
-
-modal.addEventListener('click', function(e) {
-    if (e.target === modal) {
+if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', function () {
         modal.classList.add('hidden');
         modalImg.src = '';
-    }
-});
+    });
+}
+
+if (modal) {
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+            modalImg.src = '';
+        }
+    });
+}
 
 // ========== LOGOUT ==========
-document.getElementById('logout-btn').addEventListener('click', async function() {
-    await supabaseClient.auth.signOut();
-    window.location.href = 'adlg.html';
-});
+var logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async function () {
+        await supabaseClient.auth.signOut();
+        window.location.href = 'adlg.html';
+    });
+}
 
-// ========== INITIALIZE ==========
+// ========== INIT ==========
 checkAdmin();
