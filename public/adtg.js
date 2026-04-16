@@ -21,7 +21,13 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
     }
 });
 
-const socket = io(); // Admin socket connection
+let socket;
+try {
+    socket = typeof io !== 'undefined' ? io() : null;
+} catch (e) {
+    console.error('Socket.io failed:', e);
+}
+
 
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -94,47 +100,59 @@ async function loadDashboard() {
 
 // ========== STATS ==========
 async function loadStats() {
+    // 1. Core Profile Stats
     try {
-        var [profilesRes, delReqRes] = await Promise.all([
-            supabaseClient.from('profiles').select('id, is_admin_approved, role, banned, delete_requested'),
-            supabaseClient.from('delete_requests').select('id').eq('status', 'pending')
-        ]);
-
-        var profiles  = profilesRes.data  || [];
-        var delReqs   = delReqRes.data    || [];
-
-        var nonAdmins = profiles.filter(function (p) { return p.role === 'user'; });
+        var { data: profiles, error: pErr } = await supabaseClient
+            .from('profiles')
+            .select('id, is_admin_approved, role, banned, delete_requested');
+        
+        if (pErr) throw pErr;
+        
+        var nonAdmins = (profiles || []).filter(function (p) { return p.role === 'user'; });
         var total     = nonAdmins.length;
-        var pending   = nonAdmins.filter(function (p) { return !p.is_admin_approved && !(p.banned); }).length;
-        var approved  = nonAdmins.filter(function (p) { return p.is_admin_approved && !(p.banned); }).length;
+        var pending   = nonAdmins.filter(function (p) { return !p.is_admin_approved && !p.banned; }).length;
+        var approved  = nonAdmins.filter(function (p) { return p.is_admin_approved && !p.banned; }).length;
         var banned    = nonAdmins.filter(function (p) { return p.banned; }).length;
-        var delCount  = delReqs.length;
+        var delCount  = nonAdmins.filter(function (p) { return p.delete_requested; }).length;
 
-        var statPending = document.getElementById('stat-pending');
-        var statApproved = document.getElementById('stat-approved');
-        var statTotal = document.getElementById('stat-total');
-        var statBanned = document.getElementById('stat-banned');
-
-        if (statPending) statPending.textContent = pending;
-        if (statApproved) statApproved.textContent = approved;
-        if (statTotal) statTotal.textContent = total;
-        if (statBanned) statBanned.textContent = banned;
-
-        // Sync tab badges
-        var bPending = document.getElementById('badge-pending');
-        if (bPending) bPending.textContent = pending;
-
-        // Fetch reports count for badge
-        var reportsRes = await supabaseClient.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-        var bReports = document.getElementById('badge-reports');
-        if (bReports) bReports.textContent = reportsRes.count || 0;
-        var statDelReq = document.getElementById('stat-delreq');
-        if (statDelReq) statDelReq.textContent = reportsRes.count || 0;
-
+        setText('stat-total', total);
+        setText('stat-pending', pending);
+        setText('stat-banned', banned);
+        setText('badge-pending', pending);
     } catch (err) {
-        console.error('Stats error:', err);
+        console.warn('Profile stats failed (check if profiles table has banned/delete_requested columns):', err);
+    }
+
+    // 2. Delete Requests (Table based)
+    try {
+        var { count, error: dErr } = await supabaseClient
+            .from('delete_requests')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pending');
+        
+        if (!dErr) {
+            setText('stat-delreq', count || 0);
+            setText('badge-delreq', count || 0);
+        }
+    } catch (err) {
+        console.warn('Delete requests table not ready yet.');
+    }
+
+    // 3. User Reports (Table based)
+    try {
+        var { count, error: rErr } = await supabaseClient
+            .from('reports')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pending');
+        
+        if (!rErr) {
+            setText('badge-reports', count || 0);
+        }
+    } catch (err) {
+        console.warn('Reports table not ready yet.');
     }
 }
+
 
 function setText(id, val) {
     var el = document.getElementById(id);
@@ -693,33 +711,39 @@ var broadcastMsg = document.getElementById('broadcast-msg');
 
 if (broadcastBtn) {
     broadcastBtn.addEventListener('click', function() {
-        var msg = broadcastMsg.value.trim();
         if (!msg) return;
 
-        socket.emit('admin-broadcast', { message: msg, type: 'info' });
-        showToast('Announcement broadcasted to all users!', 'success');
-        broadcastMsg.value = '';
+        if (socket) {
+            socket.emit('admin-broadcast', { message: msg, type: 'info' });
+            showToast('Announcement broadcasted to all users!', 'success');
+            broadcastMsg.value = '';
+        } else {
+            showToast('Socket connection offline. Cannot broadcast.', 'error');
+        }
     });
 }
 
 // ========== LIVE STATS SOCKET ==========
-socket.on('live-stats-data', function(data) {
-    if (!data) return;
-    
-    var elOnline = document.getElementById('stat-online');
-    var elActive = document.getElementById('stat-active-calls');
-    var elWaiting = document.getElementById('stat-waiting');
+if (socket) {
+    socket.on('live-stats-data', function(data) {
+        if (!data) return;
+        
+        var elOnline = document.getElementById('stat-online');
+        var elActive = document.getElementById('stat-active-calls');
+        var elWaiting = document.getElementById('stat-waiting');
 
-    if (elOnline)  elOnline.textContent  = data.online || 0;
-    if (elActive)  elActive.textContent  = data.activeCalls || 0;
-    if (elWaiting) elWaiting.textContent = data.waiting || 0;
-});
+        if (elOnline)  elOnline.textContent  = data.online || 0;
+        if (elActive)  elActive.textContent  = data.activeCalls || 0;
+        if (elWaiting) elWaiting.textContent = data.waiting || 0;
+    });
+}
 
 
 // Periodic stats request
 setInterval(function() {
-    socket.emit('get-live-stats');
+    if (socket) socket.emit('get-live-stats');
 }, 5000);
+
 
 // ========== LOGOUT ==========
 document.getElementById('logout-btn').addEventListener('click', async function() {

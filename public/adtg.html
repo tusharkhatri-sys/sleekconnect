@@ -315,6 +315,10 @@
                 <div class="stat-label">Total Users</div>
                 <div class="stat-value" id="stat-total">—</div>
             </div>
+            <div class="stat-card pending">
+                <div class="stat-label">Pending Approval</div>
+                <div class="stat-value" id="stat-pending">—</div>
+            </div>
             <div class="stat-card approved">
                 <div class="stat-label">Online Now</div>
                 <div class="stat-value" id="stat-online" style="color:var(--success);">0</div>
@@ -327,6 +331,7 @@
                 <div class="stat-label">Waiting in Queue</div>
                 <div class="stat-value" id="stat-waiting" style="color:var(--warning);">0</div>
             </div>
+
             <div class="stat-card delreq">
                 <div class="stat-label">Delete Requests</div>
                 <div class="stat-value" id="stat-delreq">—</div>
@@ -500,7 +505,9 @@
         <button id="close-modal" class="ux-danger-btn close-btn">✕ Close</button>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script src="supabase.js"></script>
     <script src="adtg.js"></script>
 </body>
 </html>
+
