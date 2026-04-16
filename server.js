@@ -68,7 +68,8 @@ app.get('/robots.txt', function(req, res) {
         'Disallow: /forgot-password.html',
         'Disallow: /reset-password.html',
         '',
-        'Sitemap: https://sleekconnect.com/sitemap.xml'
+        'Sitemap: https://sleekconnect.onrender.com/sitemap.xml'
+
     ].join('\n'));
 });
 
