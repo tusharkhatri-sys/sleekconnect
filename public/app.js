@@ -16,6 +16,14 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 const socket = io();
 
+// Listen for admin broadcasts
+socket.on('broadcast-receive', function(data) {
+    if (data && data.message) {
+        showToast('📣 ADMIN: ' + data.message, data.type || 'info');
+    }
+});
+
+
 // DOM
 const userStatus        = document.getElementById('user-status');
 const startPanel        = document.getElementById('start-panel');
@@ -458,6 +466,50 @@ videoOffBtn.addEventListener('click', function () {
     videoOffBtn.textContent = videoTrack.enabled ? '📷' : '🚫';
 });
 
+// ========== REPORTING LOGIC ==========
+if (reportBtn) {
+    reportBtn.addEventListener('click', function() {
+        if (reportModal) reportModal.classList.remove('hidden');
+    });
+}
+
+if (closeReportModal) {
+    closeReportModal.addEventListener('click', function() {
+        if (reportModal) reportModal.classList.add('hidden');
+    });
+}
+
+if (reportOptions) {
+    reportOptions.forEach(function(opt) {
+        opt.addEventListener('click', async function() {
+            var reason = opt.getAttribute('data-reason');
+            if (!currentUser || !currentPartnerId || !reason) return;
+
+            try {
+                var { error } = await supabaseClient
+                    .from('reports')
+                    .insert({
+                        reporter_id: currentUser,
+                        reported_id: currentPartnerId,
+                        reason: reason,
+                        status: 'pending'
+                    });
+
+                if (error) throw error;
+
+                showToast('User reported successfully. Thank you for keeping SleekConnect safe!', 'success');
+                if (reportModal) reportModal.classList.add('hidden');
+                
+                // Automatically skip to next user after reporting
+                doSkip();
+            } catch (err) {
+                console.error('Report failed:', err);
+                showToast('Failed to submit report. Please try again.', 'error');
+            }
+        });
+    });
+}
+
 // ========== LOGOUT ==========
 document.getElementById('logout-btn').addEventListener('click', async function () {
     stopMatchmaking();
@@ -467,3 +519,4 @@ document.getElementById('logout-btn').addEventListener('click', async function (
 
 // ========== INIT ==========
 verifyAccess();
+

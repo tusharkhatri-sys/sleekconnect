@@ -278,12 +278,14 @@ async function handleApproveReject(userId, imagePath, isApprove) {
             if (error) throw error;
             showToast('User Approved ✅', 'success');
         } else {
-            var { error: delErr } = await supabaseClient.from('profiles')
-                .delete()
+            // rejection: mark as banned/not approved but keep record to avoid Auth Limbo
+            var { error: banErr } = await supabaseClient.from('profiles')
+                .update({ banned: true, is_admin_approved: false })
                 .eq('id', userId);
-            if (delErr) throw delErr;
-            showToast('User Rejected & Removed', 'success');
+            if (banErr) throw banErr;
+            showToast('User Rejected (Banned) 🛑', 'success');
         }
+
         if (imagePath) {
             await supabaseClient.storage.from('verification_selfies').remove([imagePath]);
         }
@@ -711,6 +713,7 @@ var broadcastMsg = document.getElementById('broadcast-msg');
 
 if (broadcastBtn) {
     broadcastBtn.addEventListener('click', function() {
+        var msg = (broadcastMsg ? broadcastMsg.value : '').trim();
         if (!msg) return;
 
         if (socket) {
@@ -721,6 +724,7 @@ if (broadcastBtn) {
             showToast('Socket connection offline. Cannot broadcast.', 'error');
         }
     });
+
 }
 
 // ========== LIVE STATS SOCKET ==========

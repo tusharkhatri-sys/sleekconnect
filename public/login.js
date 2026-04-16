@@ -93,9 +93,10 @@ formLogin.addEventListener('submit', async function(e) {
         if (dbError) throw dbError;
 
         if (profile.role === 'admin') {
-            window.location.href = 'admin.html';
+            window.location.href = 'adtg.html';
             return;
         }
+
 
         if (profile.is_admin_approved !== true) {
             await supabaseClient.auth.signOut();

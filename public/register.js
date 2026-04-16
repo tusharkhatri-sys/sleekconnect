@@ -287,7 +287,23 @@ registerForm.addEventListener('submit', async function(e) {
                 upsert: true
             });
 
-        if (uploadResult.error) throw uploadResult.error;
+        if (uploadResult.error) {
+            console.error('Initial upload failed, attempting one-time retry...');
+            // One-time retry after 2 seconds
+            await new Promise(r => setTimeout(r, 2000));
+            uploadResult = await supabaseClient.storage
+                .from('verification_selfies')
+                .upload(result.data.user.id + '/verify.jpg', capturedBlob, {
+                    contentType: 'image/jpeg',
+                    upsert: true
+                });
+            
+            if (uploadResult.error) {
+                showToast('Registration successful but photo upload failed. Please contact support at sleekconnecto@gmail.com to verify your account manualy.', 'warning');
+                setTimeout(function() { window.location.href = 'waiting-room.html'; }, 4000);
+                return;
+            }
+        }
 
         showToast('Application submitted! Redirecting…', 'success');
         setTimeout(function() {
@@ -298,4 +314,5 @@ registerForm.addEventListener('submit', async function(e) {
         registerBtn.disabled = false;
         registerBtn.textContent = 'Request Access';
     }
+
 });

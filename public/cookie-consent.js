@@ -56,11 +56,11 @@
         banner.className = 'cookie-banner';
         banner.innerHTML = `
             <div class="cookie-text">
-                🍪 We use cookies to enhance your experience and for analytics. 
-                By continuing, you agree to our 
-                <a href="/privacy.html">Privacy Policy</a> and 
-                <a href="/terms.html">Terms of Service</a>.
+                🍪 We use cookies to enable secure login, analyze site traffic, and serve <strong>personalized advertisements</strong> via Google AdSense. 
+                By clicking "Accept All", you consent to our use of these technologies as described in our 
+                <a href="/privacy.html">Privacy Policy</a>.
             </div>
+
             <div class="cookie-actions">
                 <button id="cookie-decline" class="cookie-btn-decline">Decline</button>
                 <button id="cookie-accept" class="cookie-btn-accept">Accept All</button>
