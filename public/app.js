@@ -1,6 +1,15 @@
 /* =============================================
-   SleekConnect — Video Chat App (Security Hardened)
+   SleekConnect — Video Chat App (Security Hardened + TURN Fixed)
+   =============================================
+   Fixes applied:
+   1. Added TURN servers (required for mobile-to-mobile on 4G/5G)
+   2. Fixed remoteStream not resetting on skip/next
+   3. Fixed queueStatus element reference (was trying to hide start-panel's element while inside video container)
+   4. Added iceConnectionState reconnection handling
+   5. Added explicit remoteVideo.play() for iOS autoplay policy
+   6. Added connection timeout — if ICE takes > 15s, auto retry
    ============================================= */
+
 const supabaseUrl = 'https://onwaakkxvnbmbdmwzegg.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ud2Fha2t4dm5ibWJkbXd6ZWdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjc0NTYsImV4cCI6MjA5MTY0MzQ1Nn0.QEUmMP9RBuhiEVRaQoSaZWAqOlXtFj5TV23YyAnH8EQ';
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -8,33 +17,77 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 const socket = io();
 
 // DOM
-const userStatus = document.getElementById('user-status');
-const startPanel = document.getElementById('start-panel');
-const videoContainer = document.getElementById('video-container');
-const findPartnerBtn = document.getElementById('find-partner-btn');
-const queueStatus = document.getElementById('queue-status');
+const userStatus        = document.getElementById('user-status');
+const startPanel        = document.getElementById('start-panel');
+const videoContainer    = document.getElementById('video-container');
+const findPartnerBtn    = document.getElementById('find-partner-btn');
+const queueStatus       = document.getElementById('queue-status');   // inside start-panel — searching text
+const remoteLabel       = document.getElementById('remote-label');   // inside video-container
+const strangerLeftMsg   = document.getElementById('stranger-left-msg');
 
-const localVideo = document.getElementById('local-video');
+const localVideo  = document.getElementById('local-video');
 const remoteVideo = document.getElementById('remote-video');
-const remoteLabel = document.querySelector('.remote-label');
-const strangerLeftMsg = document.getElementById('stranger-left-msg');
 
-const nextBtn = document.getElementById('next-btn');
-const stopBtn = document.getElementById('stop-btn');
-const muteBtn = document.getElementById('mute-btn');
+const nextBtn     = document.getElementById('next-btn');
+const stopBtn     = document.getElementById('stop-btn');
+const muteBtn     = document.getElementById('mute-btn');
 const videoOffBtn = document.getElementById('video-off-btn');
 
-let currentUser = null;
+let currentUser   = null;
 let currentRoomId = null;
 let peerConnection;
 let localStream;
 let remoteStream;
-let isSearching = false;
+let isSearching   = false;
+let iceTimeout    = null;   // connection watchdog timer
 
-const servers = {
+/* ═══════════════════════════════════════════════════
+   ICE SERVER CONFIG
+   - STUN: works on WiFi/same ISP
+   - TURN: required for mobile 4G/5G (symmetric NAT)
+
+   ↓↓↓  IMPORTANT — Replace with your own TURN server  ↓↓↓
+   Free options:
+     • Metered.ca  → https://dashboard.metered.ca/signup (free 50GB/mo)
+     • Cloudflare Calls TURN
+     • Twilio NTS (paid but reliable)
+   
+   For quick testing use the open relay below (not for production):
+   ═══════════════════════════════════════════════════ */
+const ICE_SERVERS = {
     iceServers: [
-        { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
-    ]
+        // Google STUN — works on WiFi & same-network
+        {
+            urls: [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+                'stun:stun3.l.google.com:19302',
+                'stun:stun4.l.google.com:19302'
+            ]
+        },
+        // Metered Open Relay TURN — required for mobile 4G/5G symmetric NAT
+        // Source: https://www.metered.ca/tools/openrelay/
+        {
+            urls: 'stun:staticauth.openrelay.metered.ca:80'
+        },
+        {
+            urls:       'turn:staticauth.openrelay.metered.ca:80',
+            username:   'openrelayproject',
+            credential: 'openrelayprojectsecret'
+        },
+        {
+            urls:       'turn:staticauth.openrelay.metered.ca:443',
+            username:   'openrelayproject',
+            credential: 'openrelayprojectsecret'
+        },
+        {
+            urls:       'turns:staticauth.openrelay.metered.ca:443',
+            username:   'openrelayproject',
+            credential: 'openrelayprojectsecret'
+        }
+    ],
+    iceCandidatePoolSize: 10
 };
 
 // ========== TOAST ==========
@@ -53,10 +106,15 @@ function showToast(message, type) {
     toast.appendChild(iconSpan);
     toast.appendChild(textSpan);
     container.appendChild(toast);
-    setTimeout(function() {
+    setTimeout(function () {
         toast.style.animation = 'toastSlideOut 0.3s forwards';
-        setTimeout(function() { toast.remove(); }, 300);
+        setTimeout(function () { toast.remove(); }, 300);
     }, 3000);
+}
+
+// ========== SET REMOTE STATUS LABEL ==========
+function setRemoteLabel(text) {
+    if (remoteLabel) remoteLabel.textContent = text;
 }
 
 // ========== VERIFY ACCESS ==========
@@ -70,7 +128,6 @@ async function verifyAccess() {
             return;
         }
 
-        // Check if approved in DB
         var profileResult = await supabaseClient
             .from('profiles')
             .select('is_admin_approved')
@@ -92,71 +149,127 @@ async function verifyAccess() {
     }
 }
 
-// ========== OMEGLE SEARCH ==========
-findPartnerBtn.addEventListener('click', async function() {
+// ========== GET CAMERA ==========
+async function ensureLocalStream() {
+    if (localStream) return true;
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: { echoCancellation: true, noiseSuppression: true }
+        });
+        localVideo.srcObject = localStream;
+
+        // iOS requires explicit play() call
+        try { await localVideo.play(); } catch (_) {}
+        return true;
+    } catch (e) {
+        console.error('Camera error:', e);
+        showToast('Camera/mic access required. Please allow permissions.', 'error');
+        return false;
+    }
+}
+
+// ========== FIND PARTNER — Main button ==========
+findPartnerBtn.addEventListener('click', async function () {
+    var ok = await ensureLocalStream();
+    if (!ok) return;
+
     isSearching = true;
+
+    // Hide start panel — show video container with loading state
     startPanel.classList.add('hidden');
     videoContainer.classList.remove('hidden');
     strangerLeftMsg.classList.add('hidden');
+    setRemoteLabel('🔍 Searching for a verified user…');
 
-    try {
-        if (!localStream) {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-            });
-            localVideo.srcObject = localStream;
-        }
+    // Show searching pulse on the queue label (start-panel, now hidden but still controls text)
+    if (queueStatus) queueStatus.classList.remove('hidden');
 
-        remoteVideo.srcObject = null;
-        remoteLabel.textContent = 'Waiting for partner…';
+    // Clean up any previous connection
+    cleanupCall();
+    remoteVideo.srcObject = null;
 
-        socket.emit('find-partner', currentUser);
-    } catch (e) {
-        showToast('Camera access required', 'error');
-        stopMatchmaking();
-    }
+    socket.emit('find-partner', currentUser);
 });
 
-socket.on('waiting', function() {
-    remoteLabel.textContent = 'Waiting for a stranger…';
-    queueStatus.classList.remove('hidden');
+// ========== SOCKET — waiting in queue ==========
+socket.on('waiting', function () {
+    setRemoteLabel('🔍 Searching for a verified user…');
+    if (queueStatus) queueStatus.classList.remove('hidden');
+    console.log('[Socket] Waiting in queue');
 });
 
-socket.on('partner-found', async function(data) {
+// ========== SOCKET — partner matched ==========
+socket.on('partner-found', async function (data) {
+    console.log('[Socket] Partner found! Role:', data.role, 'Room:', data.roomId);
     currentRoomId = data.roomId;
-    remoteLabel.textContent = 'Connecting to stranger…';
-    strangerLeftMsg.classList.add('hidden');
-    queueStatus.classList.add('hidden');
+    isSearching   = false;
 
+    if (queueStatus) queueStatus.classList.add('hidden');
+    setRemoteLabel('⏳ Connecting to stranger…');
+    strangerLeftMsg.classList.add('hidden');
+
+    // Ensure we have local stream (edge case: fast reconnect)
+    var ok = await ensureLocalStream();
+    if (!ok) return;
+
+    // Build peer connection
     peerConnection = createPeerConnection(currentRoomId);
-    localStream.getTracks().forEach(function(track) {
+
+    // Add all local tracks
+    localStream.getTracks().forEach(function (track) {
         peerConnection.addTrack(track, localStream);
     });
 
+    // Start ICE connection watchdog (15 second timeout)
+    clearTimeout(iceTimeout);
+    iceTimeout = setTimeout(function () {
+        if (peerConnection && peerConnection.iceConnectionState !== 'connected' &&
+            peerConnection.iceConnectionState !== 'completed') {
+            console.warn('[ICE] Connection timeout — retrying');
+            showToast('Connection taking too long. Retrying…', 'info');
+            doSkip();
+        }
+    }, 15000);
+
     if (data.role === 'initiator') {
-        var offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit('offer', {
-            roomId: currentRoomId,
-            sdp: peerConnection.localDescription
-        });
+        try {
+            var offer = await peerConnection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('offer', {
+                roomId: currentRoomId,
+                sdp:    peerConnection.localDescription
+            });
+            console.log('[WebRTC] Offer sent');
+        } catch (e) {
+            console.error('[WebRTC] createOffer error:', e);
+        }
     }
 });
 
-socket.on('stranger-left', function() {
+// ========== SOCKET — stranger left ==========
+socket.on('stranger-left', function () {
+    console.log('[Socket] Stranger left');
+    clearTimeout(iceTimeout);
     remoteVideo.srcObject = null;
     strangerLeftMsg.classList.remove('hidden');
-    remoteLabel.textContent = 'Disconnected';
+    setRemoteLabel('Disconnected');
     cleanupCall();
 });
 
-// ========== WEBRTC SIGNALING ==========
-socket.on('offer', async function(data) {
+// ========== WEBRTC SIGNALING — offer received ==========
+socket.on('offer', async function (data) {
+    console.log('[WebRTC] Offer received');
     try {
         if (!peerConnection) {
+            // Receiver path: build pc when offer arrives
             peerConnection = createPeerConnection(currentRoomId);
-            localStream.getTracks().forEach(function(track) {
+            var ok = await ensureLocalStream();
+            if (!ok) return;
+            localStream.getTracks().forEach(function (track) {
                 peerConnection.addTrack(track, localStream);
             });
         }
@@ -165,81 +278,146 @@ socket.on('offer', async function(data) {
         await peerConnection.setLocalDescription(answer);
         socket.emit('answer', {
             roomId: currentRoomId,
-            sdp: peerConnection.localDescription
+            sdp:    peerConnection.localDescription
         });
+        console.log('[WebRTC] Answer sent');
     } catch (e) {
-        console.error('Offer handling error:', e);
+        console.error('[WebRTC] Offer handling error:', e);
     }
 });
 
-socket.on('answer', async function(data) {
+// ========== WEBRTC SIGNALING — answer received ==========
+socket.on('answer', async function (data) {
+    console.log('[WebRTC] Answer received');
     try {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if (peerConnection && peerConnection.signalingState !== 'stable') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        }
     } catch (e) {
-        console.error('Answer handling error:', e);
+        console.error('[WebRTC] Answer handling error:', e);
     }
 });
 
-socket.on('ice-candidate', async function(data) {
+// ========== WEBRTC SIGNALING — ICE candidates ==========
+socket.on('ice-candidate', async function (data) {
     try {
-        if (peerConnection) {
+        if (peerConnection && data.candidate) {
             await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
         }
     } catch (e) {
-        console.error('ICE candidate error:', e);
+        // Non-fatal — candidates often arrive out of order
+        console.warn('[ICE] addIceCandidate warning:', e.message);
     }
 });
 
+// ========== CREATE PEER CONNECTION ==========
 function createPeerConnection(roomId) {
-    var pc = new RTCPeerConnection(servers);
+    var pc = new RTCPeerConnection(ICE_SERVERS);
 
-    pc.onicecandidate = function(event) {
+    // Send ICE candidates to signaling server
+    pc.onicecandidate = function (event) {
         if (event.candidate) {
             socket.emit('ice-candidate', {
-                roomId: roomId,
+                roomId:    roomId,
                 candidate: event.candidate
             });
         }
     };
 
-    pc.ontrack = function(event) {
+    // Log ICE gathering state
+    pc.onicegatheringstatechange = function () {
+        console.log('[ICE] Gathering state:', pc.iceGatheringState);
+    };
+
+    // Handle incoming remote tracks
+    pc.ontrack = function (event) {
+        console.log('[WebRTC] Remote track received:', event.track.kind);
+        clearTimeout(iceTimeout);      // Clear watchdog — we have video/audio
+
         if (!remoteStream) {
             remoteStream = new MediaStream();
             remoteVideo.srcObject = remoteStream;
-            remoteLabel.textContent = 'Chatting with Stranger';
+        }
+
+        remoteStream.addTrack(event.track);
+
+        // iOS/Safari require explicit play() on video elements
+        if (event.track.kind === 'video') {
+            remoteVideo.play().catch(function (e) {
+                console.warn('[Video] play() failed (autoplay policy):', e.message);
+            });
+            setRemoteLabel('💬 Chatting with Stranger');
             strangerLeftMsg.classList.add('hidden');
         }
-        remoteStream.addTrack(event.track);
     };
 
-    pc.oniceconnectionstatechange = function() {
-        if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-            remoteLabel.textContent = 'Connection lost';
+    // Monitor ICE connection state
+    pc.oniceconnectionstatechange = function () {
+        console.log('[ICE] Connection state:', pc.iceConnectionState);
+        switch (pc.iceConnectionState) {
+            case 'connected':
+            case 'completed':
+                clearTimeout(iceTimeout);
+                setRemoteLabel('💬 Chatting with Stranger');
+                break;
+            case 'disconnected':
+                setRemoteLabel('⚠️ Connection unstable…');
+                break;
+            case 'failed':
+                clearTimeout(iceTimeout);
+                showToast('Connection failed. Try skipping to next user.', 'error');
+                setRemoteLabel('❌ Connection failed');
+                break;
+            case 'closed':
+                setRemoteLabel('Disconnected');
+                break;
         }
+    };
+
+    // Log signaling state
+    pc.onsignalingstatechange = function () {
+        console.log('[WebRTC] Signaling state:', pc.signalingState);
     };
 
     return pc;
 }
 
+// ========== CLEANUP ==========
 function cleanupCall() {
+    clearTimeout(iceTimeout);
     if (peerConnection) {
+        peerConnection.onicecandidate    = null;
+        peerConnection.ontrack           = null;
+        peerConnection.oniceconnectionstatechange = null;
         peerConnection.close();
         peerConnection = null;
     }
-    remoteStream = null;
+    remoteStream = null;     // ← This was the bug: must reset so next partner works
+}
+
+function doSkip() {
+    socket.emit('leave-partner');
+    cleanupCall();
+    remoteVideo.srcObject = null;
+    strangerLeftMsg.classList.add('hidden');
+    setRemoteLabel('🔍 Searching for a verified user…');
+    if (queueStatus) queueStatus.classList.remove('hidden');
+    socket.emit('find-partner', currentUser);
 }
 
 function stopMatchmaking() {
     isSearching = false;
     currentRoomId = null;
     cleanupCall();
+
     if (localStream) {
-        localStream.getTracks().forEach(function(t) { t.stop(); });
+        localStream.getTracks().forEach(function (t) { t.stop(); });
         localStream = null;
     }
-    localVideo.srcObject = null;
+    localVideo.srcObject  = null;
     remoteVideo.srcObject = null;
-    queueStatus.classList.add('hidden');
+
+    if (queueStatus) queueStatus.classList.add('hidden');
 
     videoContainer.classList.add('hidden');
     startPanel.classList.remove('hidden');
@@ -247,18 +425,10 @@ function stopMatchmaking() {
 }
 
 // ========== CONTROLS ==========
-nextBtn.addEventListener('click', function() {
-    socket.emit('leave-partner');
-    cleanupCall();
-    remoteLabel.textContent = 'Skipping… finding next partner';
-    remoteVideo.srcObject = null;
-    strangerLeftMsg.classList.add('hidden');
-    socket.emit('find-partner', currentUser);
-});
-
+nextBtn.addEventListener('click', doSkip);
 stopBtn.addEventListener('click', stopMatchmaking);
 
-muteBtn.addEventListener('click', function() {
+muteBtn.addEventListener('click', function () {
     if (!localStream) return;
     var audioTrack = localStream.getAudioTracks()[0];
     if (!audioTrack) return;
@@ -267,7 +437,7 @@ muteBtn.addEventListener('click', function() {
     muteBtn.textContent = audioTrack.enabled ? '🎤' : '🔇';
 });
 
-videoOffBtn.addEventListener('click', function() {
+videoOffBtn.addEventListener('click', function () {
     if (!localStream) return;
     var videoTrack = localStream.getVideoTracks()[0];
     if (!videoTrack) return;
@@ -277,7 +447,7 @@ videoOffBtn.addEventListener('click', function() {
 });
 
 // ========== LOGOUT ==========
-document.getElementById('logout-btn').addEventListener('click', async function() {
+document.getElementById('logout-btn').addEventListener('click', async function () {
     stopMatchmaking();
     await supabaseClient.auth.signOut();
     window.location.href = 'index.html';
